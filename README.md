@@ -12,7 +12,7 @@ TextBeside is released under the [MIT licence](LICENSE). The current open-source
 
 A release already made under MIT remains available under MIT. A later fee cannot revoke those rights or make a previously published version trial-only. If the goal becomes mandatory payment after an evaluation period for *the same published code*, that is a different licensing model and should be decided before that code is released.
 
-If outside contributions are accepted, record who owns them and obtain clear permission for any use beyond MIT before promising a separately licensed edition. No contribution agreement is imposed at this planning stage.
+Contributions are accepted under MIT with their copyright retained by their authors; future distributions must preserve the required notices. A separate contributor agreement is not currently required. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Sample transcription files
 
@@ -130,14 +130,16 @@ The default layout will put text on the left and the image on the right. Reversi
 
 ## Roadmap
 
+For provisional dates, checkpoint evidence and the Gantt overview, see [ROADMAP.md](ROADMAP.md). The [checkpoint issues](https://github.com/GeoffRiley/TextBeside/issues) track live progress.
+
 ### Phase 0 — Define the project
 
 - [x] Choose the name: TextBeside
 - [x] Establish the product idea and core principles
 - [x] Select Python and PySide6 for the prototype
 - [x] Choose an open-source licence (MIT)
-- [ ] Agree contribution and coding conventions
-- [ ] Turn the 0.1 scope into GitHub issues and milestones
+- [x] Document contribution and coding conventions
+- [x] Turn the 0.1 scope into checkpoint issues and a provisional roadmap
 - [x] Add a small, redistributable set of test images and matching text files
 
 **Exit criterion:** the repository explains what TextBeside is, what 0.1 contains, and how development work will be organised.
@@ -274,4 +276,4 @@ The project is at the planning and prototype stage. Early contributions are most
 - Which keyboard actions matter during long transcription sessions?
 - What sizes and formats occur in real scanned collections?
 
-A fuller contribution guide will be added once the initial package structure and development workflow exist.
+The [contribution guide](CONTRIBUTING.md) explains how to propose work, make a focused pull request, check changes, and handle sample material and licensing.
