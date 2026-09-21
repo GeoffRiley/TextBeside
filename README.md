@@ -2,9 +2,21 @@
 
 **Your source. Your transcription. Side by side.**
 
-TextBeside is a free, cross-platform desktop application for transcribing images into ordinary text or Markdown files.
+TextBeside is an open-source, cross-platform desktop application for transcribing images into ordinary text or Markdown files.
 
 It is intended for anyone who works from photographed or scanned material: genealogists, local historians, archivists, manuscript researchers, indexers, and others. The source image and transcription remain normal files in the user's chosen directory—there is no mandatory database, cloud account, import process, or proprietary project format.
+
+## Licence and future editions
+
+TextBeside is released under the [MIT licence](LICENSE). The current open-source code may be used, modified, redistributed, and sold, provided its copyright and licence notices are retained. This leaves room for a paid packaged edition, support, or additional future features. A separately licensed future edition is also possible for code whose rights permit it; PySide6/Qt and any other dependencies have their own distribution obligations.
+
+A release already made under MIT remains available under MIT. A later fee cannot revoke those rights or make a previously published version trial-only. If the goal becomes mandatory payment after an evaluation period for *the same published code*, that is a different licensing model and should be decided before that code is released.
+
+If outside contributions are accepted, record who owns them and obtain clear permission for any use beyond MIT before promising a separately licensed edition. No contribution agreement is imposed at this planning stage.
+
+## Sample transcription files
+
+The [examples/field-notes](examples/field-notes/) folder contains two paired sample pages with ordinary `.md` transcriptions. The source pages are synthetic and fictitious, with no third-party archival material. They are intended for checking the split view, basename pairing, navigation, and plain-file editing.
 
 ## The problem
 
@@ -123,10 +135,10 @@ The default layout will put text on the left and the image on the right. Reversi
 - [x] Choose the name: TextBeside
 - [x] Establish the product idea and core principles
 - [x] Select Python and PySide6 for the prototype
-- [ ] Choose an open-source licence
+- [x] Choose an open-source licence (MIT)
 - [ ] Agree contribution and coding conventions
 - [ ] Turn the 0.1 scope into GitHub issues and milestones
-- [ ] Add a small, redistributable set of test images and matching text files
+- [x] Add a small, redistributable set of test images and matching text files
 
 **Exit criterion:** the repository explains what TextBeside is, what 0.1 contains, and how development work will be organised.
 
@@ -245,7 +257,6 @@ Version 0.1 is ready when:
 
 ## Decisions to record before the first public release
 
-- open-source licence;
 - application configuration and cache locations on each platform;
 - autosave default and recovery-file policy;
 - whether UI state is stored globally or in an optional sidecar file;
