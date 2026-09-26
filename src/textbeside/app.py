@@ -56,7 +56,9 @@ class MainWindow(QMainWindow):
         self.text_path_label = QLabel("Text: no file selected")
         self.text_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.editor = QPlainTextEdit()
-        self.editor.setPlaceholderText(\n            "Open a Markdown or text file to begin transcription."\n        )
+        self.editor.setPlaceholderText(
+            "Open a Markdown or text file to begin transcription."
+        )
 
         self.image_path_label = QLabel("Image: no file selected")
         self.image_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
