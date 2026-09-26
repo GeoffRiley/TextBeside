@@ -146,9 +146,6 @@ class MainWindow(QMainWindow):
         self.text_path_label.setToolTip(str(text_path))
         self.image_path_label.setText(f"Image: {image_path.name}")
         self.image_path_label.setToolTip(str(image_path))
-        self.statusBar().showMessage(
-            f"Opened {image_path.name} ↔ {text_path.name}", 5000
-        )
 
     def _confirm_discard_if_modified(self) -> bool:
         if not self.editor.document().isModified():
