@@ -56,7 +56,7 @@ class MainWindow(QMainWindow):
         self.text_path_label = QLabel("Text: no file selected")
         self.text_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.editor = QPlainTextEdit()
-        self.editor.setPlaceholderText("Open a Markdown or text file to begin transcription.")
+        self.editor.setPlaceholderText(\n            "Open a Markdown or text file to begin transcription."\n        )
 
         self.image_path_label = QLabel("Image: no file selected")
         self.image_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -162,7 +162,7 @@ class MainWindow(QMainWindow):
         )
         return answer == QMessageBox.Discard
 
-    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt API name
+    def closeEvent(self, event: QCloseEvent) -> None:
         if self._confirm_discard_if_modified():
             event.accept()
         else:
