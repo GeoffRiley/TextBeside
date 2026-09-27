@@ -28,9 +28,9 @@ class ImageView(QGraphicsView):
         self._fit_mode = True
         self._has_image = False
 
-        self.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.setTransformationAnchor(QGraphicsView.NoAnchor)
-        self.setResizeAnchor(QGraphicsView.NoAnchor)
+        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.NoAnchor)
         self.setAlignment(Qt.AlignCenter)
 
     @property
@@ -60,6 +60,7 @@ class ImageView(QGraphicsView):
         self._has_image = not pixmap.isNull()
 
         if self._has_image:
+            self.viewport().setCursor(Qt.OpenHandCursor)
             self.fit_image()
         else:
             self.resetTransform()
