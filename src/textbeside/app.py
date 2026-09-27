@@ -93,11 +93,11 @@ class MainWindow(QMainWindow):
         open_pair_action.triggered.connect(self.open_pair_dialog)
 
         fit_image_action = QAction("&Fit image", self)
-        fit_image_action.setShortcut("F")
+        fit_image_action.setShortcut("Ctrl+0")
         fit_image_action.triggered.connect(self.fit_image)
 
         actual_size_action = QAction("&100%", self)
-        actual_size_action.setShortcut("1")
+        actual_size_action.setShortcut("Ctrl+1")
         actual_size_action.triggered.connect(self.actual_size)
 
         exit_action = QAction("E&xit", self)
