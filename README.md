@@ -53,6 +53,60 @@ The initial implementation will use:
 
 Qt provides native split panes, text editing, file watching, keyboard shortcuts, settings, and graphics-view support without requiring an embedded browser runtime.
 
+
+### Development setup
+
+TextBeside currently supports **Python 3.11 or later**.
+
+On Linux, from a fresh checkout:
+
+~~~bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+~~~
+
+If `python -m pip install --upgrade pip` reports that pip is unavailable in the new environment, bootstrap it first with:
+
+~~~bash
+python -m ensurepip --upgrade
+python -m pip install --upgrade pip
+~~~
+
+On Windows, ensure that Python 3.11 or later is installed and create the virtual environment with that interpreter explicitly if the default `python` command is older:
+
+~~~powershell
+py -3.11 -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+~~~
+
+A newer installed interpreter can be selected instead, for example `py -3.14 -m venv .venv`.
+
+Launch the prototype with:
+
+~~~bash
+textbeside
+~~~
+
+or, equivalently:
+
+~~~bash
+python -m textbeside.app
+~~~
+
+Run the current automated checks with:
+
+~~~bash
+pytest
+ruff check .
+ruff format --check .
+~~~
+
+The first prototype opens an image and a `.md` or `.txt` transcription manually using **File → Open pair…**. Directory discovery, image zoom/pan, and saving are separate checkpoint-1 slices.
+
 ## Version 0.1 scope
 
 ### Essential workflow
