@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 
 from textbeside.app import MainWindow
 
