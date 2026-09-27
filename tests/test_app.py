@@ -4,17 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 
 from textbeside.app import MainWindow
-
-
-@pytest.fixture(scope="session")
-def qapp() -> QApplication:
-    app = QApplication.instance() or QApplication([])
-    return app
 
 
 def test_main_window_has_editable_horizontal_split(qapp: QApplication) -> None:
