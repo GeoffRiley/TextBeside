@@ -14,11 +14,12 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
-    QScrollArea,
     QSplitter,
     QVBoxLayout,
     QWidget,
 )
+
+from textbeside.image_view import ImageView
 
 TEXT_EXTENSIONS = {".md", ".txt"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
@@ -62,16 +63,12 @@ class MainWindow(QMainWindow):
 
         self.image_path_label = QLabel("Image: no file selected")
         self.image_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.image_label = QLabel("Open an image to display it here.")
-        self.image_label.setAlignment(Qt.AlignCenter)
-
-        image_scroll = QScrollArea()
-        image_scroll.setWidget(self.image_label)
-        image_scroll.setWidgetResizable(True)
+        self.image_view = ImageView()
+        self.image_view.zoom_changed.connect(self._update_image_label)
 
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self._pane(self.text_path_label, self.editor))
-        splitter.addWidget(self._pane(self.image_path_label, image_scroll))
+        splitter.addWidget(self._pane(self.image_path_label, self.image_view))
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([550, 550])
@@ -95,6 +92,14 @@ class MainWindow(QMainWindow):
         open_pair_action.setShortcut(QKeySequence.Open)
         open_pair_action.triggered.connect(self.open_pair_dialog)
 
+        fit_image_action = QAction("&Fit image", self)
+        fit_image_action.setShortcut("F")
+        fit_image_action.triggered.connect(self.fit_image)
+
+        actual_size_action = QAction("&100%", self)
+        actual_size_action.setShortcut("1")
+        actual_size_action.triggered.connect(self.actual_size)
+
         exit_action = QAction("E&xit", self)
         exit_action.setShortcut(QKeySequence.Quit)
         exit_action.triggered.connect(self.close)
@@ -103,6 +108,10 @@ class MainWindow(QMainWindow):
         file_menu.addAction(open_pair_action)
         file_menu.addSeparator()
         file_menu.addAction(exit_action)
+
+        view_menu = self.menuBar().addMenu("&View")
+        view_menu.addAction(fit_image_action)
+        view_menu.addAction(actual_size_action)
 
     def open_pair_dialog(self) -> None:
         """Choose an image and transcription file without directory scanning."""
@@ -139,15 +148,30 @@ class MainWindow(QMainWindow):
 
         self.editor.setPlainText(text)
         self.editor.document().setModified(False)
-        self.image_label.setPixmap(pixmap)
-        self.image_label.resize(pixmap.size())
-
         self.current_text_path = text_path
         self.current_image_path = image_path
         self.text_path_label.setText(f"Text: {text_path.name}")
         self.text_path_label.setToolTip(str(text_path))
-        self.image_path_label.setText(f"Image: {image_path.name}")
         self.image_path_label.setToolTip(str(image_path))
+        self.image_view.set_image(pixmap)
+
+    def _update_image_label(self, zoom_percent: int) -> None:
+        """Show the current image filename and zoom level."""
+        if self.current_image_path is None:
+            self.image_path_label.setText(f"Image: no file selected · {zoom_percent}%")
+            return
+
+        self.image_path_label.setText(
+            f"Image: {self.current_image_path.name} · {zoom_percent}%"
+        )
+
+    def fit_image(self) -> None:
+        """Fit the current image in its pane."""
+        self.image_view.fit_image()
+
+    def actual_size(self) -> None:
+        """Show the current image at 100%."""
+        self.image_view.actual_size()
 
     def _confirm_discard_if_modified(self) -> bool:
         if not self.editor.document().isModified():
