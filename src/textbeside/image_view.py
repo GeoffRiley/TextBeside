@@ -12,8 +12,8 @@ class ImageView(QGraphicsView):
 
     zoom_changed = Signal(int)
 
-    MIN_ZOOM = 0.10
-    MAX_ZOOM = 8.00
+    MIN_MANUAL_ZOOM = 0.10
+    MAX_MANUAL_ZOOM = 8.00
     WHEEL_STEP = 1.20
 
     def __init__(self) -> None:
@@ -92,7 +92,10 @@ class ImageView(QGraphicsView):
         if not self._has_image:
             return
 
-        factor = max(self.MIN_ZOOM, min(self.MAX_ZOOM, factor))
+        factor = max(
+            self.MIN_MANUAL_ZOOM,
+            min(self.MAX_MANUAL_ZOOM, factor),
+        )
         center = self.mapToScene(self.viewport().rect().center())
 
         self.resetTransform()
@@ -103,7 +106,8 @@ class ImageView(QGraphicsView):
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         """Zoom around the point beneath the mouse wheel pointer."""
-        if not self._has_image or event.angleDelta().y() == 0:
+        delta_y = event.angleDelta().y() or event.pixelDelta().y()
+        if not self._has_image or delta_y == 0:
             super().wheelEvent(event)
             return
 
@@ -112,10 +116,13 @@ class ImageView(QGraphicsView):
 
         requested = (
             self.zoom_factor * self.WHEEL_STEP
-            if event.angleDelta().y() > 0
+            if delta_y > 0
             else self.zoom_factor / self.WHEEL_STEP
         )
-        target = max(self.MIN_ZOOM, min(self.MAX_ZOOM, requested))
+        target = max(
+            self.MIN_MANUAL_ZOOM,
+            min(self.MAX_MANUAL_ZOOM, requested),
+        )
         scale_factor = target / self.zoom_factor
 
         if scale_factor != 1.0:
