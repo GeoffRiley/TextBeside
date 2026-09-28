@@ -4,17 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from textbeside.app import MainWindow
-
-
-@pytest.fixture(scope="session")
-def qapp() -> QApplication:
-    app = QApplication.instance() or QApplication([])
-    return app
 
 
 def test_main_window_has_editable_horizontal_split(qapp: QApplication) -> None:
@@ -41,7 +34,8 @@ def test_sample_pair_opens_without_conversion(qapp: QApplication) -> None:
     assert image_path.name in window.image_path_label.text()
     assert text_path.name in window.text_path_label.text()
     assert window.editor.toPlainText() == text_path.read_text(encoding="utf-8")
-    assert not window.image_label.pixmap().isNull()
+    assert window.image_view.has_image
+    assert window.image_view.is_fit_mode
     assert not window.editor.document().isModified()
 
     window.close()
