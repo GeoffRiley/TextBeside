@@ -105,7 +105,7 @@ ruff check .
 ruff format --check .
 ~~~
 
-The first prototype opens an image and a `.md` or `.txt` transcription manually using **File → Open pair…**. Directory discovery, image zoom/pan, and saving are separate checkpoint-1 slices.
+The current prototype opens an image and a `.md` or `.txt` transcription manually using **File → Open pair…**. Manual image zoom is bounded from 10% to 800%; **Fit image** may go outside those bounds when necessary to show the complete image. Directory discovery and saving remain separate checkpoint-1 slices.
 
 ## Version 0.1 scope
 

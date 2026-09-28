@@ -46,9 +46,23 @@ def test_programmatic_zoom_is_clamped(qapp) -> None:
     view.set_image(_sample_pixmap())
 
     view.set_zoom_factor(100)
-    assert view.zoom_factor == view.MAX_ZOOM
+    assert view.zoom_factor == view.MAX_MANUAL_ZOOM
 
     view.set_zoom_factor(0.001)
-    assert view.zoom_factor == view.MIN_ZOOM
+    assert view.zoom_factor == view.MIN_MANUAL_ZOOM
+
+    view.close()
+
+
+def test_fit_mode_can_exceed_manual_zoom_limits(qapp) -> None:
+    view = ImageView()
+    view.resize(1000, 800)
+    view.show()
+
+    tiny = QPixmap(20, 20)
+    view.set_image(tiny)
+
+    assert view.is_fit_mode
+    assert view.zoom_factor > view.MAX_MANUAL_ZOOM
 
     view.close()
