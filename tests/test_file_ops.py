@@ -18,7 +18,7 @@ def test_atomic_save_writes_utf8_and_preserves_permissions(tmp_path: Path) -> No
 
     signature = write_text_file_atomic(path, "café — naïve\n")
 
-    assert path.read_bytes() == "café — naïve\n".encode("utf-8")
+    assert path.read_bytes() == "café — naïve\n".encode()
     assert signature == file_signature(path)
     assert stat.S_IMODE(path.stat().st_mode) == 0o640
 
