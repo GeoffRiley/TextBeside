@@ -123,7 +123,7 @@ class MainWindow(QMainWindow):
 
     def open_pair_dialog(self) -> None:
         """Choose an image and transcription file without directory scanning."""
-        if not self._confirm_discard_if_modified():
+        if not self._confirm_save_or_discard_if_modified():
             return
 
         image_name, _ = QFileDialog.getOpenFileName(
@@ -257,7 +257,7 @@ class MainWindow(QMainWindow):
         """Show the current image at 100%."""
         self.image_view.actual_size()
 
-    def _confirm_discard_if_modified(self) -> bool:
+    def _confirm_save_or_discard_if_modified(self) -> bool:
         if not self.editor.document().isModified():
             return True
 
@@ -276,7 +276,7 @@ class MainWindow(QMainWindow):
         return False
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        if self._confirm_discard_if_modified():
+        if self._confirm_save_or_discard_if_modified():
             event.accept()
         else:
             event.ignore()
