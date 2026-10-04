@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,7 @@ def write_text_file_atomic(path: Path, text: str) -> FileSignature:
     on the same filesystem. If any step fails before replacement, the original
     file is left untouched.
     """
+    original_mode = stat.S_IMODE(path.stat().st_mode)
     fd, temp_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
         suffix=".tmp",
@@ -37,6 +39,7 @@ def write_text_file_atomic(path: Path, text: str) -> FileSignature:
     temp_path = Path(temp_name)
 
     try:
+        os.chmod(temp_path, original_mode)
         with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
             handle.flush()
