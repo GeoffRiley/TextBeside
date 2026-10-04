@@ -40,6 +40,7 @@ def test_sample_pair_opens_without_conversion(qapp: QApplication) -> None:
 
     window.close()
 
+
 def test_save_updates_disk_and_clears_modified_state(
     qapp: QApplication,
     tmp_path: Path,
