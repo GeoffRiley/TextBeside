@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from textbeside.file_ops import FileSignature, file_signature, write_text_file_atomic
 from textbeside.image_view import ImageView
 
 TEXT_EXTENSIONS = {".md", ".txt"}
@@ -53,6 +54,7 @@ class MainWindow(QMainWindow):
 
         self.current_text_path: Path | None = None
         self.current_image_path: Path | None = None
+        self.current_text_signature: FileSignature | None = None
 
         self.text_path_label = QLabel("Text: no file selected")
         self.text_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -60,6 +62,7 @@ class MainWindow(QMainWindow):
         self.editor.setPlaceholderText(
             "Open a Markdown or text file to begin transcription."
         )
+        self.editor.document().modificationChanged.connect(self._update_text_label)
 
         self.image_path_label = QLabel("Image: no file selected")
         self.image_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -92,6 +95,10 @@ class MainWindow(QMainWindow):
         open_pair_action.setShortcut(QKeySequence.Open)
         open_pair_action.triggered.connect(self.open_pair_dialog)
 
+        save_action = QAction("&Save", self)
+        save_action.setShortcut(QKeySequence.Save)
+        save_action.triggered.connect(self.save_current_text)
+
         fit_image_action = QAction("&Fit image", self)
         fit_image_action.setShortcut("Ctrl+0")
         fit_image_action.triggered.connect(self.fit_image)
@@ -106,6 +113,7 @@ class MainWindow(QMainWindow):
 
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(open_pair_action)
+        file_menu.addAction(save_action)
         file_menu.addSeparator()
         file_menu.addAction(exit_action)
 
@@ -146,14 +154,90 @@ class MainWindow(QMainWindow):
         text = read_text_file(text_path)
         pixmap = load_image(image_path)
 
-        self.editor.setPlainText(text)
-        self.editor.document().setModified(False)
         self.current_text_path = text_path
         self.current_image_path = image_path
-        self.text_path_label.setText(f"Text: {text_path.name}")
+        self.current_text_signature = file_signature(text_path)
+
+        self.editor.setPlainText(text)
+        self.editor.document().setModified(False)
+        self._update_text_label(False)
         self.text_path_label.setToolTip(str(text_path))
         self.image_path_label.setToolTip(str(image_path))
         self.image_view.set_image(pixmap)
+
+    def _update_text_label(self, modified: bool | None = None) -> None:
+        """Show the current transcription filename and save state."""
+        if self.current_text_path is None:
+            self.text_path_label.setText("Text: no file selected")
+            return
+
+        if modified is None:
+            modified = self.editor.document().isModified()
+
+        state = "Modified" if modified else "Saved"
+        self.text_path_label.setText(
+            f"Text: {self.current_text_path.name} · {state}"
+        )
+
+    def save_current_text(self) -> bool:
+        """Safely save the active transcription if one is open."""
+        if self.current_text_path is None:
+            return False
+
+        try:
+            current_signature = file_signature(self.current_text_path)
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Could not save transcription",
+                f"Could not inspect the current file before saving:\n{exc}",
+            )
+            return False
+
+        if (
+            self.current_text_signature is not None
+            and current_signature != self.current_text_signature
+            and not self._confirm_external_overwrite()
+        ):
+            return False
+
+        try:
+            new_signature = write_text_file_atomic(
+                self.current_text_path,
+                self.editor.toPlainText(),
+            )
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Could not save transcription",
+                f"The transcription was not saved. Your edits remain in the editor.\n\n{exc}",
+            )
+            return False
+
+        self.current_text_signature = new_signature
+        self.editor.document().setModified(False)
+        self._update_text_label(False)
+        return True
+
+    def _confirm_external_overwrite(self) -> bool:
+        """Require explicit confirmation before overwriting an externally changed file."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Transcription changed on disk")
+        box.setText(
+            "The transcription file has changed outside TextBeside since it was opened."
+        )
+        box.setInformativeText(
+            "Overwrite the disk version with the text currently in the editor?"
+        )
+        overwrite_button = box.addButton(
+            "Overwrite",
+            QMessageBox.ButtonRole.AcceptRole,
+        )
+        box.addButton(QMessageBox.Cancel)
+        box.setDefaultButton(QMessageBox.Cancel)
+        box.exec()
+        return box.clickedButton() is overwrite_button
 
     def _update_image_label(self, zoom_percent: int) -> None:
         """Show the current image filename and zoom level."""
@@ -179,14 +263,17 @@ class MainWindow(QMainWindow):
 
         answer = QMessageBox.question(
             self,
-            "Discard unsaved changes?",
-            "The current transcription has unsaved edits. "
-            "Saving is not implemented in this prototype yet. "
-            "Discard these edits?",
-            QMessageBox.Discard | QMessageBox.Cancel,
-            QMessageBox.Cancel,
+            "Save changes?",
+            "The current transcription has unsaved edits.",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save,
         )
-        return answer == QMessageBox.Discard
+
+        if answer == QMessageBox.Save:
+            return self.save_current_text()
+        if answer == QMessageBox.Discard:
+            return True
+        return False
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self._confirm_discard_if_modified():
