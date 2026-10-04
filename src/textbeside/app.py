@@ -175,9 +175,7 @@ class MainWindow(QMainWindow):
             modified = self.editor.document().isModified()
 
         state = "Modified" if modified else "Saved"
-        self.text_path_label.setText(
-            f"Text: {self.current_text_path.name} · {state}"
-        )
+        self.text_path_label.setText(f"Text: {self.current_text_path.name} · {state}")
 
     def save_current_text(self) -> bool:
         """Safely save the active transcription if one is open."""
@@ -271,9 +269,7 @@ class MainWindow(QMainWindow):
 
         if answer == QMessageBox.Save:
             return self.save_current_text()
-        if answer == QMessageBox.Discard:
-            return True
-        return False
+        return answer == QMessageBox.Discard
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self._confirm_save_or_discard_if_modified():
