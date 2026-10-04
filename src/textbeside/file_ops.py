@@ -47,8 +47,8 @@ def write_text_file_atomic(path: Path, text: str) -> FileSignature:
 
         os.replace(temp_path, path)
         return file_signature(path)
-    except Exception:
+    finally:
         try:
             temp_path.unlink(missing_ok=True)
-        finally:
-            raise
+        except OSError:
+            pass
