@@ -40,8 +40,6 @@ def test_sample_pair_opens_without_conversion(qapp: QApplication) -> None:
 
     window.close()
 
-
-
 def test_save_updates_disk_and_clears_modified_state(
     qapp: QApplication,
     tmp_path: Path,
@@ -54,13 +52,14 @@ def test_save_updates_disk_and_clears_modified_state(
     window = MainWindow()
     window.open_pair(image_path, text_path)
     window.editor.setPlainText("updated café — exact editor text")
+    window.editor.document().setModified(True)
 
     assert window.editor.document().isModified()
     assert "Modified" in window.text_path_label.text()
 
     assert window.save_current_text()
 
-    assert text_path.read_bytes() == "updated café — exact editor text".encode("utf-8")
+    assert text_path.read_bytes() == "updated café — exact editor text".encode()
     assert not window.editor.document().isModified()
     assert "Saved" in window.text_path_label.text()
 
@@ -80,12 +79,16 @@ def test_external_change_is_not_overwritten_without_confirmation(
     window = MainWindow()
     window.open_pair(image_path, text_path)
     window.editor.setPlainText("editor version")
+    window.editor.document().setModified(True)
 
     text_path.write_text("external version with different length", encoding="utf-8")
     monkeypatch.setattr(window, "_confirm_external_overwrite", lambda: False)
 
     assert not window.save_current_text()
-    assert text_path.read_text(encoding="utf-8") == "external version with different length"
+    assert (
+        text_path.read_text(encoding="utf-8")
+        == "external version with different length"
+    )
     assert window.editor.toPlainText() == "editor version"
     assert window.editor.document().isModified()
 
@@ -106,6 +109,7 @@ def test_save_failure_keeps_editor_modified(
     window = MainWindow()
     window.open_pair(image_path, text_path)
     window.editor.setPlainText("unsaved editor text")
+    window.editor.document().setModified(True)
 
     def fail_save(path: Path, text: str):
         raise OSError("simulated save failure")
