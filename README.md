@@ -105,7 +105,7 @@ ruff check .
 ruff format --check .
 ~~~
 
-The current prototype opens an image and a `.md` or `.txt` transcription manually using **File → Open pair…**. Manual image zoom is bounded from 10% to 800%; **Fit image** may go outside those bounds when necessary to show the complete image. Directory discovery and saving remain separate checkpoint-1 slices.
+The current prototype opens an image and a `.md` or `.txt` transcription manually using **File → Open pair…** and saves the active transcription with **File → Save** or **Ctrl+S**. Saves write the editor text as UTF-8 without formatting or other content changes, use an atomic replacement, and warn before overwriting a file whose modification time or byte length changed outside TextBeside. Manual image zoom is bounded from 10% to 800%; **Fit image** may go outside those bounds when necessary to show the complete image. Directory discovery remains a later slice.
 
 ## Version 0.1 scope
 
