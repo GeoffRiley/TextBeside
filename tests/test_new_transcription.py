@@ -154,7 +154,7 @@ def test_signature_is_of_staged_file_even_if_target_replaced(
     signature = create_text_file_exclusive(target, "ours")
 
     assert target.read_text(encoding="utf-8") == "external longer content"
-    assert signature.size == len("ours".encode())
+    assert signature.size == len(b"ours")
     assert signature != file_signature(target)
 
 
