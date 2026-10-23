@@ -52,3 +52,24 @@ def write_text_file_atomic(path: Path, text: str) -> FileSignature:
             temp_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+def create_text_file_exclusive(path: Path, text: str) -> FileSignature:
+    """Create UTF-8 text only if the destination does not already exist.
+
+    O_EXCL provides an atomic no-overwrite guarantee, including when another
+    process creates the target between inspection and creation.
+    """
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except BaseException:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+    return file_signature(path)
