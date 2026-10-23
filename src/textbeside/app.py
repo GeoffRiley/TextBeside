@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
     QLabel,
+    QInputDialog,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -19,9 +20,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from textbeside.file_ops import FileSignature, file_signature, write_text_file_atomic
+from textbeside.file_ops import (
+    FileSignature,
+    create_text_file_exclusive,
+    file_signature,
+    write_text_file_atomic,
+)
 from textbeside.image_discovery import IMAGE_EXTENSIONS
 from textbeside.image_view import ImageView
+from textbeside.pairing import PairStatus, resolve_pair
 
 TEXT_EXTENSIONS = {".md", ".txt"}
 
@@ -55,6 +62,7 @@ class MainWindow(QMainWindow):
         self.current_text_path: Path | None = None
         self.current_image_path: Path | None = None
         self.current_text_signature: FileSignature | None = None
+        self.new_transcription = False
 
         self.text_path_label = QLabel("Text: no file selected")
         self.text_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -95,6 +103,9 @@ class MainWindow(QMainWindow):
         open_pair_action.setShortcut(QKeySequence.Open)
         open_pair_action.triggered.connect(self.open_pair_dialog)
 
+        new_action = QAction("New transcription from image…", self)
+        new_action.triggered.connect(self.open_image_only_dialog)
+
         save_action = QAction("&Save", self)
         save_action.setShortcut(QKeySequence.Save)
         save_action.triggered.connect(self.save_current_text)
@@ -113,6 +124,7 @@ class MainWindow(QMainWindow):
 
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(open_pair_action)
+        file_menu.addAction(new_action)
         file_menu.addAction(save_action)
         file_menu.addSeparator()
         file_menu.addAction(exit_action)
@@ -149,6 +161,43 @@ class MainWindow(QMainWindow):
         except (OSError, UnicodeError, ValueError) as exc:
             QMessageBox.critical(self, "Could not open pair", str(exc))
 
+    def open_image_only_dialog(self) -> None:
+        """Choose an unpaired source image for a new transcription."""
+        image_name, _ = QFileDialog.getOpenFileName(
+            self,
+            "Start transcription from image",
+            "",
+            "Images (*.jpg *.jpeg *.png *.webp *.tif *.tiff);;All files (*)",
+        )
+        if not image_name:
+            return
+        if not self._confirm_save_or_discard_if_modified():
+            return
+        try:
+            self.open_image_only(Path(image_name))
+        except (OSError, UnicodeError, ValueError) as exc:
+            QMessageBox.critical(self, "Could not open image", str(exc))
+
+    def open_image_only(self, image_path: Path) -> None:
+        """Open an unpaired image without creating a text file on disk."""
+        pairing = resolve_pair(image_path)
+        if pairing.status is not PairStatus.MISSING:
+            raise ValueError(
+                "This image already has a transcription counterpart. "
+                "Use Open pair to load it instead."
+            )
+        pixmap = load_image(image_path)
+        self.current_image_path = image_path
+        self.current_text_path = None
+        self.current_text_signature = None
+        self.new_transcription = True
+        self.editor.setPlainText("")
+        self.editor.document().setModified(False)
+        self.text_path_label.setToolTip(str(image_path.parent))
+        self.image_path_label.setToolTip(str(image_path))
+        self.image_view.set_image(pixmap)
+        self._update_text_label(False)
+
     def open_pair(self, image_path: Path, text_path: Path) -> None:
         """Load both files, then replace the visible pair only if both succeed."""
         text = read_text_file(text_path)
@@ -157,6 +206,7 @@ class MainWindow(QMainWindow):
         self.current_text_path = text_path
         self.current_image_path = image_path
         self.current_text_signature = file_signature(text_path)
+        self.new_transcription = False
 
         self.editor.setPlainText(text)
         self.editor.document().setModified(False)
@@ -167,6 +217,10 @@ class MainWindow(QMainWindow):
 
     def _update_text_label(self, modified: bool | None = None) -> None:
         """Show the current transcription filename and save state."""
+        if self.new_transcription:
+            state = "Modified" if modified else "Not saved"
+            self.text_path_label.setText(f"Text: new transcription · {state}")
+            return
         if self.current_text_path is None:
             self.text_path_label.setText("Text: no file selected")
             return
@@ -179,6 +233,8 @@ class MainWindow(QMainWindow):
 
     def save_current_text(self) -> bool:
         """Safely save the active transcription if one is open."""
+        if self.new_transcription:
+            return self._save_new_transcription()
         if self.current_text_path is None:
             return False
 
@@ -213,6 +269,59 @@ class MainWindow(QMainWindow):
             return False
 
         self.current_text_signature = new_signature
+        self.editor.document().setModified(False)
+        self._update_text_label(False)
+        return True
+
+    def _save_new_transcription(self) -> bool:
+        """Choose a format and exclusively create an image's first text file."""
+        if self.current_image_path is None:
+            return False
+
+        extension, ok = QInputDialog.getItem(
+            self,
+            "New transcription format",
+            "Save as:",
+            [".md (Markdown)", ".txt (plain text)"],
+            0,
+            False,
+        )
+        if not ok:
+            return False
+        suffix = ".md" if extension.startswith(".md") else ".txt"
+        target = self.current_image_path.with_suffix(suffix)
+
+        try:
+            pairing = resolve_pair(self.current_image_path)
+            if pairing.status is not PairStatus.MISSING:
+                QMessageBox.warning(
+                    self,
+                    "Transcription already exists",
+                    "A transcription has appeared beside this image. "
+                    "Your edits are still in the editor; no file was overwritten.",
+                )
+                return False
+            signature = create_text_file_exclusive(target, self.editor.toPlainText())
+        except FileExistsError:
+            QMessageBox.warning(
+                self,
+                "Transcription already exists",
+                "That filename was created by another process. "
+                "Your text remains in the editor.",
+            )
+            return False
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Could not create transcription",
+                f"Your text remains in the editor.\n\n{exc}",
+            )
+            return False
+
+        self.current_text_path = target
+        self.current_text_signature = signature
+        self.new_transcription = False
+        self.text_path_label.setToolTip(str(target))
         self.editor.document().setModified(False)
         self._update_text_label(False)
         return True
