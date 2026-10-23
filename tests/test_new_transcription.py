@@ -1,5 +1,6 @@
 """Starting a new transcription without an existing text file."""
 
+import errno
 import os
 import stat
 from pathlib import Path
@@ -9,7 +10,7 @@ import pytest
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from textbeside.app import MainWindow
-from textbeside.file_ops import create_text_file_exclusive
+from textbeside.file_ops import create_text_file_exclusive, file_signature
 
 
 @pytest.fixture
@@ -135,3 +136,59 @@ def test_created_file_is_private(tmp_path: Path) -> None:
     target = tmp_path / "private.md"
     create_text_file_exclusive(target, "private material")
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_signature_is_of_staged_file_even_if_target_replaced(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "replace.md"
+    real_link = os.link
+
+    def replace_after_publish(source, destination):
+        real_link(source, destination)
+        replacement = tmp_path / "replacement.tmp"
+        replacement.write_text("external longer content", encoding="utf-8")
+        os.replace(replacement, destination)
+
+    monkeypatch.setattr(os, "link", replace_after_publish)
+    signature = create_text_file_exclusive(target, "ours")
+
+    assert target.read_text(encoding="utf-8") == "external longer content"
+    assert signature.size == len("ours".encode())
+    assert signature != file_signature(target)
+
+
+def test_no_hardlinks_falls_back_to_exclusive_creation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "fallback.md"
+
+    def unsupported(*args, **kwargs):
+        raise OSError(errno.EOPNOTSUPP, "hard links unavailable")
+
+    monkeypatch.setattr(os, "link", unsupported)
+    signature = create_text_file_exclusive(target, "fallback Café")
+    assert target.read_text(encoding="utf-8") == "fallback Café"
+    assert signature.size == len("fallback Café".encode())
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["fallback.md"]
+
+    with pytest.raises(FileExistsError):
+        create_text_file_exclusive(target, "overwrite attempt")
+    assert target.read_text(encoding="utf-8") == "fallback Café"
+
+
+def test_cleanup_failure_cannot_mask_completed_publication(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "completed.md"
+    original_unlink = Path.unlink
+
+    def blocked_unlink(path, *args, **kwargs):
+        if path.suffix == ".tmp":
+            raise PermissionError("simulated locked temporary file")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", blocked_unlink)
+    signature = create_text_file_exclusive(target, "saved")
+    assert target.read_text(encoding="utf-8") == "saved"
+    assert signature.size == 5
