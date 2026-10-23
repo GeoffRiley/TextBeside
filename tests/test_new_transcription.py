@@ -33,10 +33,13 @@ def test_open_image_only_keeps_directory_unchanged(qapp, source_image: Path) -> 
     window.close()
 
 
-@pytest.mark.parametrize("choice,suffix", [
-    (".md (Markdown)", ".md"),
-    (".txt (plain text)", ".txt"),
-])
+@pytest.mark.parametrize(
+    "choice,suffix",
+    [
+        (".md (Markdown)", ".md"),
+        (".txt (plain text)", ".txt"),
+    ],
+)
 def test_first_save_creates_chosen_format(
     qapp, source_image: Path, monkeypatch, choice: str, suffix: str
 ) -> None:
@@ -70,9 +73,7 @@ def test_first_save_cancellation_preserves_editor(
     window.close()
 
 
-def test_existing_counterpart_prevents_new_work(
-    qapp, source_image: Path
-) -> None:
+def test_existing_counterpart_prevents_new_work(qapp, source_image: Path) -> None:
     source_image.with_suffix(".md").write_text("existing", encoding="utf-8")
     window = MainWindow()
     with pytest.raises(ValueError, match="already has"):
@@ -90,7 +91,9 @@ def test_counterpart_appearing_before_save_is_not_overwritten(
     window.editor.document().setModified(True)
     unexpected = source_image.with_suffix(".txt")
     unexpected.write_text("someone else's work", encoding="utf-8")
-    monkeypatch.setattr(QInputDialog, "getItem", lambda *a, **k: (".md (Markdown)", True))
+    monkeypatch.setattr(
+        QInputDialog, "getItem", lambda *a, **k: (".md (Markdown)", True)
+    )
     monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: None)
 
     assert not window.save_current_text()
