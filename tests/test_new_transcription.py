@@ -1,10 +1,12 @@
 """Starting a new transcription without an existing text file."""
 
+import os
+import stat
 from pathlib import Path
 from shutil import copyfile
 
 import pytest
-from PySide6.QtWidgets import QMessageBox, QInputDialog
+from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from textbeside.app import MainWindow
 from textbeside.file_ops import create_text_file_exclusive
@@ -45,7 +47,7 @@ def test_first_save_creates_chosen_format(
 
     assert window.save_current_text()
     target = source_image.with_suffix(suffix)
-    assert target.read_bytes() == "Café — transcription".encode("utf-8")
+    assert target.read_bytes() == "Café — transcription".encode()
     assert window.current_text_path == target
     assert not window.new_transcription
     assert not window.editor.document().isModified()
@@ -58,6 +60,7 @@ def test_first_save_cancellation_preserves_editor(
     window = MainWindow()
     window.open_image_only(source_image)
     window.editor.setPlainText("Work in progress")
+    window.editor.document().setModified(True)
     monkeypatch.setattr(QInputDialog, "getItem", lambda *a, **k: ("", False))
     assert not window.save_current_text()
     assert window.editor.toPlainText() == "Work in progress"
@@ -84,6 +87,7 @@ def test_counterpart_appearing_before_save_is_not_overwritten(
     window = MainWindow()
     window.open_image_only(source_image)
     window.editor.setPlainText("My new transcription")
+    window.editor.document().setModified(True)
     unexpected = source_image.with_suffix(".txt")
     unexpected.write_text("someone else's work", encoding="utf-8")
     monkeypatch.setattr(QInputDialog, "getItem", lambda *a, **k: (".md (Markdown)", True))
@@ -103,3 +107,28 @@ def test_exclusive_creation_cannot_overwrite_existing(tmp_path: Path) -> None:
     with pytest.raises(FileExistsError):
         create_text_file_exclusive(path, "replacement")
     assert path.read_text(encoding="utf-8") == "original"
+
+
+def test_failed_publish_does_not_delete_racing_target(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "new.md"
+    original_link = os.link
+
+    def concurrent_creation(source, destination):
+        target.write_text("other process", encoding="utf-8")
+        return original_link(source, destination)
+
+    monkeypatch.setattr(os, "link", concurrent_creation)
+
+    with pytest.raises(FileExistsError):
+        create_text_file_exclusive(target, "our transcription")
+    assert target.read_text(encoding="utf-8") == "other process"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["new.md"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix mode bits")
+def test_created_file_is_private(tmp_path: Path) -> None:
+    target = tmp_path / "private.md"
+    create_text_file_exclusive(target, "private material")
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
