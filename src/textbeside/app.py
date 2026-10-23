@@ -10,8 +10,8 @@ from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
-    QLabel,
     QInputDialog,
+    QLabel,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
