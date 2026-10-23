@@ -55,21 +55,27 @@ def write_text_file_atomic(path: Path, text: str) -> FileSignature:
 
 
 def create_text_file_exclusive(path: Path, text: str) -> FileSignature:
-    """Create UTF-8 text only if the destination does not already exist.
+    """Publish new UTF-8 text only if no file exists at *path*.
 
-    O_EXCL provides an atomic no-overwrite guarantee, including when another
-    process creates the target between inspection and creation.
+    Write and sync a private temporary file, then hard-link it to the
+    destination. os.link fails if the destination already exists, so
+    cleanup never removes a file belonging to another process.
     """
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+    )
+    temp_path = Path(temp_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-    except BaseException:
-        try:
-            path.unlink()
-        except OSError:
-            pass
-        raise
-    return file_signature(path)
+
+        # The temporary file begins with owner-only access on Unix.
+        # Hard-link creation is exclusive on supported local filesystems.
+        os.link(temp_path, path)
+        return file_signature(path)
+    finally:
+        temp_path.unlink(missing_ok=True)
