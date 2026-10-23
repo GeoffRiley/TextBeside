@@ -12,10 +12,7 @@ _NUMBERS = re.compile(r"(\d+)")
 def natural_sort_key(name: str) -> tuple:
     """Sort embedded decimal numbers numerically, with deterministic ties."""
     parts = _NUMBERS.split(name.casefold())
-    key = tuple(
-        (1, int(part)) if part.isdecimal() else (0, part)
-        for part in parts
-    )
+    key = tuple((1, int(part)) if part.isdecimal() else (0, part) for part in parts)
     return key, name.casefold(), name
 
 
