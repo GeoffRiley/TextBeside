@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import stat
 import tempfile
@@ -54,12 +55,27 @@ def write_text_file_atomic(path: Path, text: str) -> FileSignature:
             pass
 
 
-def create_text_file_exclusive(path: Path, text: str) -> FileSignature:
-    """Publish new UTF-8 text only if no file exists at *path*.
+def _exclusive_create_fallback(path: Path, text: str) -> FileSignature:
+    """Create on filesystems without hard links, never replacing a target.
 
-    Write and sync a private temporary file, then hard-link it to the
-    destination. os.link fails if the destination already exists, so
-    cleanup never removes a file belonging to another process.
+    A failed write leaves a partial file in place: deleting the destination
+    would risk deleting a different process's replacement of that name.
+    """
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+        info = os.fstat(handle.fileno())
+    return FileSignature(mtime_ns=info.st_mtime_ns, size=info.st_size)
+
+
+def create_text_file_exclusive(path: Path, text: str) -> FileSignature:
+    """Publish new UTF-8 text without replacing another file.
+
+    Prefer a fully synchronised private temporary file, published via a
+    no-clobber hard link. Fall back to O_EXCL creation where hard links are
+    unsupported. Fallback write errors preserve partial files for recovery.
     """
     fd, temp_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
@@ -72,10 +88,31 @@ def create_text_file_exclusive(path: Path, text: str) -> FileSignature:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
+            info = os.fstat(handle.fileno())
+            signature = FileSignature(mtime_ns=info.st_mtime_ns, size=info.st_size)
 
-        # The temporary file begins with owner-only access on Unix.
-        # Hard-link creation is exclusive on supported local filesystems.
-        os.link(temp_path, path)
-        return file_signature(path)
+        try:
+            os.link(temp_path, path)
+        except OSError as exc:
+            unsupported = {
+                errno.ENOSYS,
+                errno.EPERM,
+                errno.EOPNOTSUPP,
+                errno.ENOTSUP,
+            }
+            # Windows may report unsupported operations with a WinError
+            # unrelated to errno (ERROR_INVALID_FUNCTION / NOT_SUPPORTED).
+            if exc.errno not in unsupported and getattr(exc, "winerror", None) not in (
+                1,
+                50,
+            ):
+                raise
+            return _exclusive_create_fallback(path, text)
+        return signature
     finally:
-        temp_path.unlink(missing_ok=True)
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            # Cleanup must never turn a published transcription into a
+            # reported save failure.
+            pass
