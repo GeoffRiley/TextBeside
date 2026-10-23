@@ -20,10 +20,10 @@ from PySide6.QtWidgets import (
 )
 
 from textbeside.file_ops import FileSignature, file_signature, write_text_file_atomic
+from textbeside.image_discovery import IMAGE_EXTENSIONS
 from textbeside.image_view import ImageView
 
 TEXT_EXTENSIONS = {".md", ".txt"}
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
 
 
 def read_text_file(path: Path) -> str:

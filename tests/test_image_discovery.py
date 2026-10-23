@@ -37,12 +37,11 @@ def test_empty_directory(tmp_path: Path) -> None:
 
 
 def test_numeric_ties_have_deterministic_order(tmp_path: Path) -> None:
-    for name in ("page02.png", "page2.png", "Page2.png"):
+    for name in ("page002.png", "page02.png", "page2.png"):
         (tmp_path / name).touch()
 
     first = [path.name for path in discover_images(tmp_path)]
-    assert first == [path.name for path in discover_images(tmp_path)]
-    assert len(first) == 3
+    assert first == ["page002.png", "page02.png", "page2.png"]
 
 
 def test_non_directory_raises(tmp_path: Path) -> None:
