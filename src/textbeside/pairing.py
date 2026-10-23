@@ -27,6 +27,19 @@ class PairResult:
     status: PairStatus
     candidates: tuple[Path, ...]
 
+    def __post_init__(self) -> None:
+        """Ensure the pairing status agrees with its candidates."""
+        expected = {
+            PairStatus.MISSING: 0,
+            PairStatus.MATCHED: 1,
+            PairStatus.CONFLICT: 2,
+        }
+
+        if len(self.candidates) != expected[self.status]:
+            raise ValueError(
+                f"{self.status.value} pairing has {len(self.candidates)} candidates"
+            )
+
     @property
     def text_path(self) -> Path | None:
         """Return the unambiguous existing transcription, if any."""

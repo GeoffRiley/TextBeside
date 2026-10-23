@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from textbeside.pairing import PairStatus, resolve_pair
+from textbeside.pairing import PairResult, PairStatus, resolve_pair
 
 
 def test_markdown_counterpart(tmp_path: Path) -> None:
@@ -83,3 +83,17 @@ def test_directory_is_not_a_counterpart(tmp_path: Path) -> None:
 def test_unsupported_image_type_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Unsupported image"):
         resolve_pair(tmp_path / "notes.pdf")
+
+
+def test_pair_result_rejects_inconsistent_status(tmp_path: Path) -> None:
+    image = tmp_path / "page.jpg"
+
+    with pytest.raises(ValueError):
+        PairResult(image, PairStatus.MATCHED, ())
+
+    with pytest.raises(ValueError):
+        PairResult(
+            image,
+            PairStatus.MATCHED,
+            (tmp_path / "page.md", tmp_path / "page.txt"),
+        )
