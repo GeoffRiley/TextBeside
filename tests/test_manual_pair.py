@@ -150,3 +150,38 @@ def test_failed_save_aborts_open(working, tmp_path, monkeypatch):
     monkeypatch.setattr(window, "save_current_text", lambda: False)
     window.open_pair_dialog()
     assert snapshot(window) == before
+
+
+@pytest.mark.parametrize("manual_dialog", [True, False])
+def test_concurrent_edit_during_read_preserves_current_work(
+    working, tmp_path, monkeypatch, manual_dialog
+):
+    from textbeside import app
+
+    window, image, _current = working
+    target = tmp_path / "different.txt"
+    target.write_text("old destination", encoding="utf-8")
+    before = snapshot(window)
+    original_read = app.read_text_file
+
+    def concurrent_read(path):
+        text = original_read(path)
+        path.write_text("external replacement with longer text", encoding="utf-8")
+        return text
+
+    monkeypatch.setattr(app, "read_text_file", concurrent_read)
+    monkeypatch.setattr(window, "_confirm_mismatched_pair", lambda *a: True)
+    monkeypatch.setattr(QMessageBox, "critical", lambda *a: None)
+
+    def unexpected_prompt(*a):
+        pytest.fail("must detect changed loading before prompting to discard")
+
+    monkeypatch.setattr(QMessageBox, "question", unexpected_prompt)
+    if manual_dialog:
+        pick(monkeypatch, image, target)
+        window.open_pair_dialog()
+    else:
+        with pytest.raises(OSError, match="changed while opening"):
+            window.open_pair(image, target)
+    assert snapshot(window) == before
+    assert target.read_text() == "external replacement with longer text"

@@ -51,6 +51,18 @@ def load_image(path: Path) -> QPixmap:
     return pixmap
 
 
+def read_text_snapshot(path: Path) -> tuple[str, FileSignature]:
+    """Reject a transcription that changes while it is being loaded."""
+    before = file_signature(path)
+    text = read_text_file(path)
+    after = file_signature(path)
+    if before != after:
+        raise OSError(
+            f"The transcription changed while opening: {path.name}. Please try again."
+        )
+    return text, before
+
+
 class MainWindow(QMainWindow):
     """The first TextBeside split-view window."""
 
@@ -161,9 +173,8 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            text = read_text_file(text_path)
+            text, signature = read_text_snapshot(text_path)
             pixmap = load_image(image_path)
-            signature = file_signature(text_path)
         except (OSError, UnicodeError, ValueError) as exc:
             QMessageBox.critical(self, "Could not open pair", str(exc))
             return
@@ -239,9 +250,8 @@ class MainWindow(QMainWindow):
 
     def open_pair(self, image_path: Path, text_path: Path) -> None:
         """Load both files, then replace the visible pair only if both succeed."""
-        text = read_text_file(text_path)
+        text, signature = read_text_snapshot(text_path)
         pixmap = load_image(image_path)
-        signature = file_signature(text_path)
         self._display_pair(image_path, text_path, text, pixmap, signature)
 
     def _display_pair(
