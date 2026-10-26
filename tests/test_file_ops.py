@@ -20,7 +20,8 @@ def test_atomic_save_writes_utf8_and_preserves_permissions(tmp_path: Path) -> No
 
     assert path.read_bytes() == "café — naïve\n".encode()
     assert signature == file_signature(path)
-    assert stat.S_IMODE(path.stat().st_mode) == 0o640
+    if os.name != "nt":
+        assert stat.S_IMODE(path.stat().st_mode) == 0o640
 
 
 def test_atomic_save_failure_leaves_original_intact(

@@ -41,15 +41,16 @@ TextBeside will occupy the useful space between them:
 6. **Linux and Windows are first-class platforms.** macOS support is desirable, subject to testing and packaging resources.
 7. **Plain files stay useful elsewhere.** TextBeside-specific enhancements must not make the transcription unreadable in another editor.
 
-## Proposed technology
+## Technology
 
-The initial implementation will use:
+The prototype uses:
 
 - **Python 3.11 or later**
 - **PySide6 / Qt 6** for the desktop interface
 - **pytest** for automated tests
 - **Ruff** for linting and formatting
-- **PyInstaller** or a comparable tool for distributable application builds, to be evaluated during the packaging phase
+
+Distributable builds are still planned; **PyInstaller** or a comparable tool will be evaluated during packaging.
 
 Qt provides native split panes, text editing, file watching, keyboard shortcuts, settings, and graphics-view support without requiring an embedded browser runtime.
 
@@ -105,9 +106,54 @@ ruff check .
 ruff format --check .
 ~~~
 
-The current prototype opens an image and a `.md` or `.txt` transcription manually using **File → Open pair…** and saves the active transcription with **File → Save** or **Ctrl+S**. Saves write the editor text as UTF-8 without formatting or other content changes, use an atomic replacement, and warn before overwriting a file whose modification time or byte length changed outside TextBeside. Manual image zoom is bounded from 10% to 800%; **Fit image** may go outside those bounds when necessary to show the complete image. Directory discovery remains a later slice.
+## Current prototype: usage and status
 
-## Version 0.1 scope
+Checkpoint 1's split-view, image controls and safe text saving are implemented on `main`. Checkpoint 2A adds nonrecursive image discovery and natural filename ordering; Checkpoint 2B adds explicit missing/matched/conflicting counterpart results. These backend helpers are also on `main`, but there is no folder browser, rescan command or previous/next navigation in the interface yet.
+
+This branch additionally contains Checkpoint 2C's new-transcription workflow in [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19). Until that PR is merged, **File → New transcription from image…** is available on `issue-15-new-transcription`, not on `main`. Checkpoint 2D's navigation UI remains planned in [#16](https://github.com/GeoffRiley/TextBeside/issues/16).
+
+### Open and edit an existing pair
+
+1. Choose **File → Open pair…** (**Ctrl+O** on Linux/Windows).
+2. Select the source image, then an existing UTF-8 `.md` or `.txt` transcription. This is a manual choice; the dialog does not enforce matching basenames or automatically select a counterpart.
+3. Edit the text on the left and drag the splitter to resize the panes.
+4. Choose **File → Save** or **Ctrl+S**. The text header shows **Saved** or **Modified**.
+
+Markdown is edited as source text. For a quick trial, open either image and its matching `.md` file from [examples/field-notes](examples/field-notes/); use copies when testing saves.
+
+### Start a new transcription from an image (Checkpoint 2C)
+
+1. Choose **File → New transcription from image…** and select an image with no existing same-basename `.md` or `.txt` counterpart.
+2. Type into the empty editor. Opening the image creates no transcription file; the header initially shows **Not saved**.
+3. On the first **Save** (**Ctrl+S**), choose Markdown (`.md`) or plain text (`.txt`). TextBeside saves beside the image with the same basename: `page-001.jpg` becomes `page-001.md` or `page-001.txt`. There is no filename/location chooser or Save As command.
+4. Later saves update that file normally.
+
+If either counterpart already exists, the new-transcription command refuses to start; use **Open pair…** to select the existing file. If both exist, it does not choose between them. Before first save, counterparts are checked again, and creation cannot replace an existing target. The check and creation are separate operations: another process can still create the alternate extension in between, leaving both counterparts present. Cancelling the format choice, a newly detected counterpart, or a creation error leaves your text in the editor.
+
+### Image controls
+
+| Action | Control |
+| --- | --- |
+| Zoom around the pointer | Mouse wheel |
+| Pan | Hold the left mouse button and drag |
+| Fit the whole image | **View → Fit image**, **Ctrl+0** |
+| Show at 100% | **View → 100%**, **Ctrl+1** |
+
+Newly opened images are fitted automatically. Fit mode follows pane resizing; manual zoom leaves fit mode. Manual zoom is bounded from 10% to 800%; **Fit image** may go outside those bounds to show the complete image. The image header displays the zoom percentage.
+
+### Saving and current limitations
+
+- Switching work or closing the window with modified text prompts **Save / Discard / Cancel**. Cancelling or a failed save retains the current work. An untouched empty new transcription has no edits and can be closed without a prompt or file creation.
+- Saves encode the editor's plain text as UTF-8; Markdown is not rendered or reformatted. Loading through the text editor does not preserve the original byte representation of line endings.
+- Existing-file saves use a temporary file in the same directory and atomic replacement. External changes are checked at save time using modification time and byte length, with explicit overwrite confirmation. This is not continuous monitoring or a content comparison: changes retaining both values, or changes after the check, can be missed.
+- First-save creation stages the text and publishes it without replacing an existing target using a hard link where supported. On filesystems without hard-link support it falls back to exclusive creation. If a fallback write fails, a partial counterpart may remain on disk; preserve the editor text and inspect/recover that file before retrying. Failed temporary-file cleanup can also leave a dot-prefixed `.tmp` file.
+- Directory discovery currently filters by extension, ignores subdirectories and unrelated files, and sorts numbered names naturally (for example, `page-2` before `page-10`). It does not validate image contents. Image loading reports unreadable or unsupported images; no large-image performance guarantee is established.
+- Folder opening/rescanning, a page list, previous/next navigation and an interactive counterpart-conflict resolver are not implemented. Fit width, rotation, per-image view restoration, find/replace, autosave/recovery and persistent window/recent-folder settings are also still planned.
+- There are no packaged alpha builds yet. Linux and Windows are the primary targets; macOS testing and packaging remain future work. Unix permission-bit checks are skipped on Windows, whose permission model differs.
+
+## Version 0.1 target scope
+
+The following describes the intended release, not a list of features already available. See the current prototype instructions above for implemented behaviour.
 
 ### Essential workflow
 
@@ -154,24 +200,21 @@ page-001.jpg  <->  page-001.md
 page-002.png  <->  page-002.txt
 ~~~
 
-Supported source-image extensions should initially include:
+The prototype accepts these source-image extensions (case-insensitively):
 
 ~~~text
 .jpg  .jpeg  .png  .webp  .tif  .tiff
 ~~~
 
-Rules requiring an explicit decision during prototyping:
+The Checkpoint 2B resolver checks same-directory, same-basename paths with lowercase `.md` and `.txt` suffixes. No match means missing; one means matched; both mean conflict, with neither preferred. Multiple dots in a basename are retained. Files are inspected without being read or changed.
 
-- behaviour when both matching .md and .txt files exist;
-- case-sensitive matching on platforms with different filesystem behaviour;
-- natural ordering of numbered filenames such as page-2 and page-10;
-- handling unsupported, corrupt, or exceptionally large images.
+Path matching follows the filesystem's case rules: on a case-sensitive filesystem, `page.MD` is not the lowercase `page.md` candidate. There is no cross-platform case-normalisation policy yet. Natural image ordering is implemented in Checkpoint 2A, with deterministic ties. Automatic pairing/navigation and conflict choice in the UI remain later work; manual **Open pair…** still lets you select a transcription explicitly.
 
 PDF files and multi-page image containers are deferred until after 0.1.
 
-## Proposed interface
+## Interface target
 
-The main window will contain:
+The current window has an editable text pane on the left, an image pane on the right, a draggable splitter, filename/state headers, File and View menus, and a basic status bar. The full 0.1 interface is planned to contain:
 
 - a compact directory/pair navigator;
 - an editable text pane;
@@ -200,13 +243,13 @@ For provisional dates, checkpoint evidence and the Gantt overview, see [ROADMAP.
 
 ### Phase 1 — Prove the central interaction
 
-Build a minimal vertical slice containing:
+Implemented and reviewed in [Checkpoint 1 #2](https://github.com/GeoffRiley/TextBeside/issues/2):
 
-- [ ] a resizable text/image split view;
-- [ ] an editable text widget;
-- [ ] a graphics view with pointer-centred zoom and drag panning;
-- [ ] open/save actions;
-- [ ] one hard-coded or manually selected image/text pair.
+- [x] a resizable text/image split view;
+- [x] an editable text widget;
+- [x] a graphics view with pointer-centred zoom and drag panning;
+- [x] open/save actions;
+- [x] a manually selected image/text pair.
 
 **Exit criterion:** a real transcription can be comfortably edited beside its image, and the image controls feel good enough to justify continuing with the chosen toolkit.
 
@@ -215,28 +258,28 @@ This is the most important early checkpoint. If zooming or panning feels awkward
 ### Phase 2 — Add paired-file workflow
 
 - [ ] Open and rescan a directory
-- [ ] Discover supported images
-- [ ] Pair images with .md or .txt files
-- [ ] Create a missing counterpart safely
+- [x] Discover supported images (2A backend; UI integration pending)
+- [x] Resolve .md/.txt counterparts as missing, matched or conflicting (2B backend)
+- [ ] Create a missing counterpart safely (2C implemented on this branch in PR #19; merge/review pending)
 - [ ] Add previous/next pair navigation
-- [ ] Add natural filename ordering
-- [ ] Prompt or save appropriately before changing pairs
-- [ ] Detect external changes to the active transcription
-- [ ] Report pairing conflicts without guessing
+- [x] Add natural filename ordering (2A backend)
+- [ ] Prompt or save appropriately during directory navigation (manual opening/closing already protects modified text)
+- [x] Check external modification time and byte length before saving the active transcription
+- [ ] Expose pairing conflicts in the navigation UI (2B already returns explicit conflicts)
 
 **Exit criterion:** a directory of sequential scans can be transcribed from beginning to end without separately opening or matching files.
 
 ### Phase 3 — Make it a dependable daily tool
 
-- [ ] Add fit image, fit width, 100%, and rotation controls
+- [ ] Complete image controls: fit image and 100% exist; fit width and rotation remain
 - [ ] Remember window layout and recent directories
 - [ ] Remember per-image zoom and pan state
 - [ ] Add find and replace
 - [ ] Add configurable autosave
-- [ ] Define and implement keyboard shortcuts
+- [ ] Complete keyboard shortcuts (Open, Save, Fit image and 100% already exist)
 - [ ] Handle missing, moved, corrupt, and read-only files gracefully
 - [ ] Add accessibility labels and full keyboard navigation
-- [ ] Add unit tests for file discovery, pairing, sorting, and save-conflict behaviour
+- [x] Add unit tests for file discovery, pairing, sorting, and save-conflict behaviour
 
 **Exit criterion:** common mistakes do not lose transcription work, and the application is pleasant for a sustained transcription session.
 
@@ -270,21 +313,9 @@ Prioritise these only after feedback from real use:
 
 These are candidates, not commitments. Each should preserve the local-files-first design.
 
-## Suggested first development slice
+## Current development focus
 
-The first code milestone should be deliberately narrow:
-
-> Open one image and one text file in a split window, edit and save the text, and make image zooming and panning feel excellent.
-
-Recommended implementation order:
-
-1. create the Python package and a minimal QMainWindow;
-2. add a QSplitter with QPlainTextEdit and a custom image-view widget;
-3. implement image loading, pointer-centred wheel zoom, drag panning, and zoom reset;
-4. implement UTF-8 text loading, modified-state tracking, and atomic saving;
-5. add a manual “Open pair” action;
-6. test the interaction with small, large, portrait, and landscape images;
-7. review the feel of the prototype before designing the directory browser.
+The first vertical slice is complete. Checkpoint 2A/2B's discovery and pairing helpers are on `main`; this branch adds Checkpoint 2C in PR #19. Complete its review and Linux/Windows verification before merging, then connect these pieces to directory selection and previous/next navigation in Checkpoint 2D. The overall paired-directory checkpoint remains incomplete.
 
 ## Acceptance criteria for 0.1
 
@@ -322,7 +353,7 @@ Version 0.1 is ready when:
 
 ## Contributing
 
-The project is at the planning and prototype stage. Early contributions are most useful when they test the central assumptions:
+The project has a working split-view prototype and is developing the paired-directory workflow. Early contributions are most useful when they test the central assumptions:
 
 - Is basename pairing sufficient for real collections?
 - Which zoom and pan controls feel most natural?
