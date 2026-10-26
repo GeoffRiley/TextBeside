@@ -135,9 +135,6 @@ class MainWindow(QMainWindow):
 
     def open_pair_dialog(self) -> None:
         """Choose an image and transcription file without directory scanning."""
-        if not self._confirm_save_or_discard_if_modified():
-            return
-
         image_name, _ = QFileDialog.getOpenFileName(
             self,
             "Open source image",
@@ -156,10 +153,52 @@ class MainWindow(QMainWindow):
         if not text_name:
             return
 
+        image_path, text_path = Path(image_name), Path(text_name)
+        # Exact, case-sensitive stems on every platform; extensions do not count.
+        if image_path.stem != text_path.stem and not self._confirm_mismatched_pair(
+            image_path, text_path
+        ):
+            return
+
         try:
-            self.open_pair(Path(image_name), Path(text_name))
+            text = read_text_file(text_path)
+            pixmap = load_image(image_path)
+            signature = file_signature(text_path)
         except (OSError, UnicodeError, ValueError) as exc:
             QMessageBox.critical(self, "Could not open pair", str(exc))
+            return
+
+        was_modified = self.editor.document().isModified()
+        if not self._confirm_save_or_discard_if_modified():
+            return
+        # Saving may have updated the very transcription selected for reopening.
+        if (
+            was_modified
+            and not self.editor.document().isModified()
+            and self.current_text_path is not None
+            and self.current_text_path.resolve() == text_path.resolve()
+        ):
+            text = self.editor.toPlainText()
+            signature = self.current_text_signature
+        self._display_pair(image_path, text_path, text, pixmap, signature)
+
+    def _confirm_mismatched_pair(self, image_path: Path, text_path: Path) -> bool:
+        """Keep deliberate manual pairings available with explicit consent."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Image and transcription filenames differ")
+        box.setTextFormat(Qt.PlainText)
+        box.setText(
+            f"Image: {image_path.name}\nTranscription: {text_path.name}\n\n"
+            "These filenames have different stems and may not belong together."
+        )
+        box.setInformativeText("Open this pair anyway?")
+        open_button = box.addButton("Open anyway", QMessageBox.AcceptRole)
+        cancel_button = box.addButton(QMessageBox.Cancel)
+        box.setDefaultButton(cancel_button)
+        box.setEscapeButton(cancel_button)
+        box.exec()
+        return box.clickedButton() is open_button
 
     def open_image_only_dialog(self) -> None:
         """Choose an unpaired source image for a new transcription."""
@@ -202,10 +241,22 @@ class MainWindow(QMainWindow):
         """Load both files, then replace the visible pair only if both succeed."""
         text = read_text_file(text_path)
         pixmap = load_image(image_path)
+        signature = file_signature(text_path)
+        self._display_pair(image_path, text_path, text, pixmap, signature)
+
+    def _display_pair(
+        self,
+        image_path: Path,
+        text_path: Path,
+        text: str,
+        pixmap: QPixmap,
+        signature: FileSignature | None,
+    ) -> None:
+        """Commit a fully loaded pair after all opening decisions succeed."""
 
         self.current_text_path = text_path
         self.current_image_path = image_path
-        self.current_text_signature = file_signature(text_path)
+        self.current_text_signature = signature
         self.new_transcription = False
 
         self.editor.setPlainText(text)
