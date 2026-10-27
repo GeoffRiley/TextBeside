@@ -32,6 +32,19 @@ this interactive validation.
 
 The directory is rediscovered for each navigation. Files removed before a click
 are absent from the new sequence; a disappeared current image requires reopening.
-New files appear in the sequence on the next navigation or successful open. There
-is no dedicated folder browser, rescan command, page list or filesystem watcher.
+A directory watcher refreshes page position and boundary controls when images are
+added or removed. There is no dedicated folder browser, rescan command or page list.
+
+## Review follow-up checks (Windows and Linux)
+
+- While positioned at the last page, add a new higher-numbered image to the folder.
+  Next should enable automatically; navigate to the new page without reopening.
+- Remove an adjacent page and check that the position/buttons refresh.
+- Exercise a slow or large image/directory: the loading dialog should remain
+  responsive and Cancel must retain the current work. A pending operating-system
+  read cannot be forcibly stopped; its late result must not switch pages.
+- Repeat unsaved Discard/Cancel and conflict-choice checks after this change.
+
+The initial walkthrough passed on both platforms on 27 October 2026. The added
+background-loading and directory-watcher behavior awaits targeted manual validation.
 Record OS, results and any failures in the PR. No multi-image manifest is involved.

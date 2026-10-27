@@ -72,13 +72,22 @@ def test_order_missing_counterpart_and_boundaries(pages):
 )
 def test_unsaved_decisions(pages, monkeypatch, answer):
     window, images = pages
+    destination = images[1].with_suffix(".md")
+    destination.write_text("second page", encoding="utf-8")
     edit(window)
     before = state(window)
     monkeypatch.setattr(QMessageBox, "question", lambda *a: answer)
     assert window.navigate_page(1) == (answer != QMessageBox.Cancel)
     if answer == QMessageBox.Cancel:
         assert state(window) == before
-    assert images[0].with_suffix(".md").read_text() == (
+    else:
+        assert window.current_image_path == images[1]
+        assert window.current_text_path == destination
+        assert not window.new_transcription
+        assert window.editor.toPlainText() == "second page"
+        assert not window.editor.document().isModified()
+        assert window.image_view.has_image
+    assert images[0].with_suffix(".md").read_text(encoding="utf-8") == (
         "unsaved café" if answer == QMessageBox.Save else "first"
     )
 
@@ -92,6 +101,9 @@ def test_conflict_requires_choice(pages, monkeypatch, choice):
 
     def choose():
         box = window.findChild(QMessageBox)
+        if box is None or not box.isVisible():
+            QTimer.singleShot(10, choose)
+            return
         assert box.defaultButton() == box.button(QMessageBox.Cancel)
         assert box.escapeButton() == box.button(QMessageBox.Cancel)
         if choice == "cancel":
@@ -170,7 +182,7 @@ def test_manual_mismatch_anchors_to_image_not_text(pages, tmp_path):
     assert window.navigate_page(1)
     assert window.current_image_path == images[2]
     assert window.current_text_path == images[2].with_suffix(".txt")
-    assert unrelated.read_text() == "manual"
+    assert unrelated.read_text(encoding="utf-8") == "manual"
 
 
 def test_no_current_image(qapp):
@@ -190,7 +202,10 @@ def test_external_overwrite_refusal_stops_navigation(pages, monkeypatch):
     monkeypatch.setattr(window, "_confirm_external_overwrite", lambda: False)
     assert not window.navigate_page(1)
     assert state(window) == before
-    assert images[0].with_suffix(".md").read_text() == "external longer replacement"
+    assert (
+        images[0].with_suffix(".md").read_text(encoding="utf-8")
+        == "external longer replacement"
+    )
 
 
 def test_navigation_saves_new_transcription(pages, monkeypatch):
@@ -200,7 +215,7 @@ def test_navigation_saves_new_transcription(pages, monkeypatch):
     monkeypatch.setattr(QMessageBox, "question", lambda *a: QMessageBox.Save)
     monkeypatch.setattr(QInputDialog, "getItem", lambda *a: (".txt (plain text)", True))
     assert window.navigate_page(1)
-    assert images[1].with_suffix(".txt").read_text() == "unsaved café"
+    assert images[1].with_suffix(".txt").read_text(encoding="utf-8") == "unsaved café"
     assert window.navigate_page(-1)
     assert not window.new_transcription
     assert window.editor.toPlainText() == "unsaved café"
@@ -219,3 +234,96 @@ def test_two_sample_pages(qapp):
     assert window.navigate_page(-1)
     assert window.current_image_path == first
     window.close()
+
+
+def wait_for(predicate, timeout=3000):
+    from PySide6.QtCore import QEventLoop
+
+    loop = QEventLoop()
+    timer = QTimer()
+    timer.timeout.connect(lambda: loop.quit() if predicate() else None)
+    deadline = QTimer()
+    deadline.setSingleShot(True)
+    deadline.timeout.connect(loop.quit)
+    timer.start(10)
+    deadline.start(timeout)
+    if not predicate():
+        loop.exec()
+    timer.stop()
+    deadline.stop()
+    assert predicate(), "timed out waiting for Qt event"
+
+
+def test_added_last_page_enables_next_without_reopening(pages):
+    window, images = pages
+    assert window.navigate_page(1)
+    assert window.navigate_page(1)
+    assert not window.next_action.isEnabled()
+    new_page = images[0].parent / "page-11.jpg"
+    copyfile(images[0], new_page)
+    wait_for(window.next_action.isEnabled)
+    assert window.statusBar().currentMessage() == "Page 3 of 4"
+    assert window.navigate_page(1)
+    assert window.current_image_path == new_page
+    assert not window.next_action.isEnabled()
+    new_page.unlink()
+    wait_for(lambda: not window.previous_action.isEnabled())
+    assert window.current_image_path == new_page
+    assert window.new_transcription
+
+
+@pytest.mark.parametrize("phase", ["discovery", "load", "revalidation"])
+def test_stalled_navigation_remains_cancellable(pages, monkeypatch, phase):
+    from threading import Event, get_ident
+
+    from PySide6.QtWidgets import QProgressDialog
+
+    from textbeside import app
+
+    window, _images = pages
+    edit(window)
+    before = state(window)
+    started, release, finished = Event(), Event(), Event()
+    ui_thread = get_ident()
+    worker_threads = []
+    original = app.discover_images if phase == "discovery" else app.load_page_data
+    calls = 0
+
+    def stalled(*args):
+        nonlocal calls
+        calls += 1
+        worker_threads.append(get_ident())
+        if phase != "revalidation" or calls == 2:
+            started.set()
+            release.wait(5)
+        try:
+            return original(*args)
+        finally:
+            if started.is_set():
+                finished.set()
+
+    target = "discover_images" if phase == "discovery" else "load_page_data"
+    monkeypatch.setattr(app, target, stalled)
+    monkeypatch.setattr(QMessageBox, "question", lambda *a: QMessageBox.Discard)
+    ticks = []
+    timer = QTimer()
+
+    def cancel_when_started():
+        ticks.append(True)
+        if started.is_set():
+            progress = window.findChild(QProgressDialog)
+            if progress is not None:
+                progress.cancel()
+
+    timer.timeout.connect(cancel_when_started)
+    timer.start(10)
+    try:
+        assert not window.navigate_page(1)
+        assert state(window) == before
+        assert ticks and worker_threads
+        assert all(thread != ui_thread for thread in worker_threads)
+    finally:
+        timer.stop()
+        release.set()
+    wait_for(finished.is_set)
+    assert state(window) == before  # late completion cannot publish a page

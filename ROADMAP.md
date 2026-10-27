@@ -46,14 +46,14 @@ gantt
 | 2D: previous/next paired-page navigation | **Implemented; review pending — [#16](https://github.com/GeoffRiley/TextBeside/issues/16)** | Toolbar/menu controls and Alt+Left/Right reuse discovery, counterpart resolution and save protection; Windows/Linux walkthrough passed; code review remains. |
 | Complete directory workflow and checkpoint review | Outstanding — [#3](https://github.com/GeoffRiley/TextBeside/issues/3) | Dedicated folder opening/rescanning remains; validate navigation and conflict handling against the parent checkpoint before closure. |
 
-The navigation implementation has **75 passing automated tests** across the application suite, with Ruff lint and formatting checks passing. This is a dated evidence snapshot, not a fixed test-count target. The [manual-pair walkthrough](docs/manual-pair-warning-walkthrough.md) documents interactive checks.
+The navigation implementation has **79 passing automated tests** across the application suite, with Ruff lint and formatting checks passing. This is a dated evidence snapshot, not a fixed test-count target. The [manual-pair walkthrough](docs/manual-pair-warning-walkthrough.md) documents interactive checks.
 
 ## Current review and validation: Issue #16
 
 - Implemented: Previous / Next controls for the naturally ordered images in the working directory, with predictable first/last-page behavior and no unexpected wrapping.
 - Implemented: load the corresponding transcription or a safe missing-counterpart state. Require a user decision for conflicting `.md`/`.txt` counterparts.
 - Implemented: preserve **Save / Discard / Cancel** protection, including cancelled or failed first saves. Cancelled navigation or unavailable files must retain the current work and unsaved edits.
-- Automated integration checks cover ordering, missing/conflicting counterparts, cancellation and failures. Geoff confirmed all [Linux/Windows walkthrough](docs/page-navigation-walkthrough.md) tests passed on both platforms on 27 October 2026, with fast operation and predictable responses. Code review remains before closing #16.
+- Automated integration checks cover ordering, missing/conflicting counterparts, cancellation and failures. Geoff confirmed all [Linux/Windows walkthrough](docs/page-navigation-walkthrough.md) tests passed on both platforms on 27 October 2026, with fast operation and predictable responses. Review follow-ups add cancellable background loading and automatic directory refresh, with targeted automated coverage. Recheck these additions on Windows and Linux and complete code review before closing #16.
 - Retain manual **Open pair**, including intentional mismatches and the new warning.
 
 A multi-image manifest or control file associating multiple images with one transcription is **outside 0.1**.
