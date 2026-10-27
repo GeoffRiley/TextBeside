@@ -26,7 +26,7 @@ from textbeside.file_ops import (
     file_signature,
     write_text_file_atomic,
 )
-from textbeside.image_discovery import IMAGE_EXTENSIONS
+from textbeside.image_discovery import IMAGE_EXTENSIONS, discover_images
 from textbeside.image_view import ImageView
 from textbeside.pairing import PairStatus, resolve_pair
 
@@ -99,7 +99,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         self._create_actions()
-        self.statusBar().showMessage("Ready")
+        self._refresh_navigation()
 
     @staticmethod
     def _pane(header: QLabel, content: QWidget) -> QWidget:
@@ -144,6 +144,103 @@ class MainWindow(QMainWindow):
         view_menu = self.menuBar().addMenu("&View")
         view_menu.addAction(fit_image_action)
         view_menu.addAction(actual_size_action)
+
+        self.previous_action = QAction("&Previous page", self)
+        self.previous_action.setShortcut("Alt+Left")
+        self.previous_action.triggered.connect(lambda: self.navigate_page(-1))
+        self.next_action = QAction("&Next page", self)
+        self.next_action.setShortcut("Alt+Right")
+        self.next_action.triggered.connect(lambda: self.navigate_page(1))
+        navigation_menu = self.menuBar().addMenu("&Navigate")
+        navigation_menu.addAction(self.previous_action)
+        navigation_menu.addAction(self.next_action)
+        toolbar = self.addToolBar("Page navigation")
+        toolbar.setObjectName("pageNavigation")
+        toolbar.addAction(self.previous_action)
+        toolbar.addAction(self.next_action)
+
+    def _refresh_navigation(self) -> None:
+        """Update controls from the active image's directory without writing files."""
+        self.previous_action.setEnabled(False)
+        self.next_action.setEnabled(False)
+        if self.current_image_path is None:
+            self.statusBar().showMessage("Open a pair or start from an image")
+            return
+        try:
+            images = discover_images(self.current_image_path.parent)
+            index = images.index(self.current_image_path)
+        except (OSError, ValueError):
+            self.statusBar().showMessage("Current image or directory unavailable")
+            return
+        self.previous_action.setEnabled(index > 0)
+        self.next_action.setEnabled(index + 1 < len(images))
+        self.statusBar().showMessage(f"Page {index + 1} of {len(images)}")
+
+    def _choose_counterpart(self, candidates: tuple[Path, ...]) -> Path | None:
+        """Never silently prefer one transcription format over another."""
+        box = QMessageBox(self)
+        box.setWindowTitle("Choose transcription")
+        box.setIcon(QMessageBox.Question)
+        box.setTextFormat(Qt.PlainText)
+        box.setText("Both Markdown and plain-text transcriptions exist. Choose one:")
+        buttons = {
+            box.addButton(path.name, QMessageBox.AcceptRole): path
+            for path in candidates
+        }
+        cancel = box.addButton(QMessageBox.Cancel)
+        box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
+        box.exec()
+        return buttons.get(box.clickedButton())
+
+    def navigate_page(self, direction: int) -> bool:
+        """Load an adjacent page transactionally, retaining edits on failure."""
+        if direction not in (-1, 1):
+            raise ValueError("Navigation direction must be -1 or 1")
+        if self.current_image_path is None:
+            return False
+        try:
+            images = discover_images(self.current_image_path.parent)
+            if self.current_image_path not in images:
+                raise OSError(
+                    "The current image is no longer available. Reopen a pair."
+                )
+            index = images.index(self.current_image_path) + direction
+            if not 0 <= index < len(images):
+                self._refresh_navigation()
+                return False
+            image_path = images[index]
+            pairing = resolve_pair(image_path)
+            text_path = pairing.text_path
+            if pairing.status is PairStatus.CONFLICT:
+                text_path = self._choose_counterpart(pairing.candidates)
+                if text_path is None:
+                    return False
+            # Validate before asking the user to save or discard current edits.
+            pixmap = load_image(image_path)
+            text, signature = (
+                read_text_snapshot(text_path) if text_path is not None else ("", None)
+            )
+        except (OSError, UnicodeError, ValueError) as exc:
+            QMessageBox.critical(self, "Could not change page", str(exc))
+            return False
+
+        if not self._confirm_save_or_discard_if_modified():
+            return False
+        try:
+            # Dialogs allow other programs to change the destination. Revalidate
+            # without discarding editor contents or silently choosing a new pair.
+            if resolve_pair(image_path) != pairing:
+                raise OSError("The destination pairing changed. Please try again.")
+            pixmap = load_image(image_path)
+            text, signature = (
+                read_text_snapshot(text_path) if text_path is not None else ("", None)
+            )
+        except (OSError, UnicodeError, ValueError) as exc:
+            QMessageBox.critical(self, "Could not change page", str(exc))
+            return False
+        self._display_pair(image_path, text_path, text, pixmap, signature)
+        return True
 
     def open_pair_dialog(self) -> None:
         """Choose an image and transcription file without directory scanning."""
@@ -247,6 +344,7 @@ class MainWindow(QMainWindow):
         self.image_path_label.setToolTip(str(image_path))
         self.image_view.set_image(pixmap)
         self._update_text_label(False)
+        self._refresh_navigation()
 
     def open_pair(self, image_path: Path, text_path: Path) -> None:
         """Load both files, then replace the visible pair only if both succeed."""
@@ -257,7 +355,7 @@ class MainWindow(QMainWindow):
     def _display_pair(
         self,
         image_path: Path,
-        text_path: Path,
+        text_path: Path | None,
         text: str,
         pixmap: QPixmap,
         signature: FileSignature | None,
@@ -267,14 +365,15 @@ class MainWindow(QMainWindow):
         self.current_text_path = text_path
         self.current_image_path = image_path
         self.current_text_signature = signature
-        self.new_transcription = False
+        self.new_transcription = text_path is None
 
         self.editor.setPlainText(text)
         self.editor.document().setModified(False)
         self._update_text_label(False)
-        self.text_path_label.setToolTip(str(text_path))
+        self.text_path_label.setToolTip(str(text_path or image_path.parent))
         self.image_path_label.setToolTip(str(image_path))
         self.image_view.set_image(pixmap)
+        self._refresh_navigation()
 
     def _update_text_label(self, modified: bool | None = None) -> None:
         """Show the current transcription filename and save state."""

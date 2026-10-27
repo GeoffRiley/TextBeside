@@ -108,9 +108,9 @@ ruff format --check .
 
 ## Current prototype: usage and status
 
-Checkpoint 1's split-view, image controls and safe text saving are implemented on `main`. Checkpoint 2A adds nonrecursive image discovery and natural filename ordering; Checkpoint 2B adds explicit missing/matched/conflicting counterpart results. These backend helpers are also on `main`, but there is no folder browser, rescan command or previous/next navigation in the interface yet.
+Checkpoint 1's split-view, image controls and safe text saving are implemented on `main`. Checkpoint 2A adds nonrecursive image discovery and natural filename ordering; Checkpoint 2B adds explicit missing/matched/conflicting counterpart results. Previous/next navigation now connects these helpers to the interface. A folder browser, dedicated rescan command and page list remain outstanding.
 
-Checkpoint 2C's **File → New transcription from image…** workflow is implemented on `main`, merged in [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19). Manual filename-mismatch warnings and safer pair opening are also on `main`, merged in [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) for [#20](https://github.com/GeoffRiley/TextBeside/issues/20). The workflows were manually tested on Windows and Linux. Checkpoint 2D's previous/next navigation UI remains planned in [#16](https://github.com/GeoffRiley/TextBeside/issues/16).
+Checkpoint 2C's **File → New transcription from image…** workflow is implemented on `main`, merged in [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19). Manual filename-mismatch warnings and safer pair opening are also on `main`, merged in [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) for [#20](https://github.com/GeoffRiley/TextBeside/issues/20). The workflows were manually tested on Windows and Linux. Checkpoint 2D adds previous/next navigation under [#16](https://github.com/GeoffRiley/TextBeside/issues/16); its Windows/Linux walkthrough is pending.
 
 ### Open and edit an existing pair
 
@@ -132,6 +132,14 @@ Markdown is edited as source text. For a quick trial, open either image and its 
 
 If either counterpart already exists, the new-transcription command refuses to start; use **Open pair…** to select the existing file. If both exist, it does not choose between them. Before first save, counterparts are checked again, and creation cannot replace an existing target. The check and creation are separate operations: another process can still create the alternate extension in between, leaving both counterparts present. Cancelling the format choice, a newly detected counterpart, or a creation error leaves your text in the editor.
 
+### Navigate paired pages (Checkpoint 2D)
+
+Open an existing pair or start from an unpaired image, then use the **Previous page** / **Next page** toolbar buttons or **Navigate** menu. **Alt+Left** and **Alt+Right** provide the same actions. The status bar shows the current page position. Images in the active image's directory are ordered naturally; unavailable directions are disabled and navigation never wraps.
+
+Each destination opens its same-basename transcription. A missing counterpart starts an empty in-memory transcription without creating a file; both `.md` and `.txt` prompt for an explicit choice, with Cancel as the default. Modified text prompts **Save / Discard / Cancel** before switching. Cancellation, failed saving or failed loading retains the current work. Intentional manual mismatches remain available; navigation uses the active image's directory and resolves each destination independently.
+
+The directory is rediscovered at each navigation. New or removed files affect the next sequence; if the current image disappears, reopen a valid pair. Destination files and pairing are rechecked after dialogs before switching. See the [Windows/Linux navigation walkthrough](docs/page-navigation-walkthrough.md); interactive validation is still pending.
+
 ### Image controls
 
 | Action | Control |
@@ -150,7 +158,7 @@ Newly opened images are fitted automatically. Fit mode follows pane resizing; ma
 - Existing-file saves use a temporary file in the same directory and atomic replacement. Transcription loading checks modification time and byte length before and after reading and rejects a detected change. External changes are also checked at save time using those values, with explicit overwrite confirmation. This is not continuous monitoring or a content comparison: changes retaining both values, or changes after the check, can be missed.
 - First-save creation stages the text and publishes it without replacing an existing target using a hard link where supported. On filesystems without hard-link support it falls back to exclusive creation. If a fallback write fails, a partial counterpart may remain on disk; preserve the editor text and inspect/recover that file before retrying. Failed temporary-file cleanup can also leave a dot-prefixed `.tmp` file.
 - Directory discovery currently filters by extension, ignores subdirectories and unrelated files, and sorts numbered names naturally (for example, `page-2` before `page-10`). It does not validate image contents. Image loading reports unreadable or unsupported images; no large-image performance guarantee is established.
-- Folder opening/rescanning, a page list, previous/next navigation and an interactive counterpart-conflict resolver are not implemented. Fit width, rotation, per-image view restoration, find/replace, autosave/recovery and persistent window/recent-folder settings are also still planned.
+- A dedicated folder-opening/rescan interface and a page list are not implemented; navigation starts from the current image and offers explicit counterpart-conflict choices. Fit width, rotation, per-image view restoration, find/replace, autosave/recovery and persistent window/recent-folder settings are also still planned.
 - There are no packaged alpha builds yet. Linux and Windows are the primary targets; macOS testing and packaging remain future work. Unix permission-bit checks are skipped on Windows, whose permission model differs.
 
 ## Version 0.1 target scope
@@ -210,7 +218,7 @@ The prototype accepts these source-image extensions (case-insensitively):
 
 The Checkpoint 2B resolver checks same-directory, same-basename paths with lowercase `.md` and `.txt` suffixes. No match means missing; one means matched; both mean conflict, with neither preferred. Multiple dots in a basename are retained. Files are inspected without being read or changed.
 
-Path matching follows the filesystem's case rules: on a case-sensitive filesystem, `page.MD` is not the lowercase `page.md` candidate. There is no cross-platform case-normalisation policy yet. Natural image ordering is implemented in Checkpoint 2A, with deterministic ties. Automatic pairing/navigation and conflict choice in the UI remain later work; manual **Open pair…** still lets you select a transcription explicitly.
+Path matching follows the filesystem's case rules: on a case-sensitive filesystem, `page.MD` is not the lowercase `page.md` candidate. There is no cross-platform case-normalisation policy yet. Natural image ordering is implemented in Checkpoint 2A, with deterministic ties. Previous/next navigation uses these results and prompts on conflicts; manual **Open pair…** still lets you select a transcription explicitly.
 
 Manual **Open pair…** uses a separate, platform-consistent warning rule: exact case-sensitive filename stems, with extensions and directories ignored. A warning does not establish whether the text content matches the image.
 
@@ -266,11 +274,11 @@ This is the most important early checkpoint. If zooming or panning feels awkward
 - [x] Resolve .md/.txt counterparts as missing, matched or conflicting (2B backend)
 - [x] Create a missing counterpart safely (2C, merged in PR #19)
 - [x] Warn before manually opening mismatched filename stems, preserving intentional mismatches and safe cancellation (#20, merged in PR #21)
-- [ ] Add previous/next pair navigation
+- [x] Add previous/next pair navigation (2D; cross-platform walkthrough pending)
 - [x] Add natural filename ordering (2A backend)
-- [ ] Prompt or save appropriately during directory navigation (manual opening/closing already protects modified text)
+- [x] Protect modified text with Save / Discard / Cancel during page navigation
 - [x] Check external modification time and byte length before saving the active transcription
-- [ ] Expose pairing conflicts in the navigation UI (2B already returns explicit conflicts)
+- [x] Expose pairing conflicts with an explicit choice in the navigation UI
 
 **Exit criterion:** a directory of sequential scans can be transcribed from beginning to end without separately opening or matching files.
 
@@ -320,7 +328,7 @@ These are candidates, not commitments. Each should preserve the local-files-firs
 
 ## Current development focus
 
-The first vertical slice, Checkpoint 2A/2B's discovery and pairing helpers, Checkpoint 2C's new-transcription workflow, and #20's manual mismatch warning are on `main`. Windows and Linux manual testing has confirmed the new-transcription and manual-pair workflows. The next step is [#16: previous/next paired-page navigation](https://github.com/GeoffRiley/TextBeside/issues/16), reusing discovery, counterpart resolution and save protection. Directory selection and the overall paired-directory checkpoint remain incomplete.
+The first vertical slice, Checkpoint 2A/2B's discovery and pairing helpers, Checkpoint 2C's new-transcription workflow, and #20's manual mismatch warning are on `main`. Windows and Linux manual testing has confirmed the new-transcription and manual-pair workflows. Checkpoint 2D implements [#16: previous/next paired-page navigation](https://github.com/GeoffRiley/TextBeside/issues/16), reusing discovery, counterpart resolution and save protection; review and Windows/Linux interactive validation remain before closing that slice. Directory selection and the overall paired-directory checkpoint remain incomplete.
 
 ## Acceptance criteria for 0.1
 
