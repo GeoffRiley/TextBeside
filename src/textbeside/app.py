@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
+from typing import TypeVar
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QPixmap
+from PySide6.QtCore import QEventLoop, QFileSystemWatcher, Qt, QTimer
+from PySide6.QtGui import QAction, QCloseEvent, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -15,6 +19,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
+    QProgressDialog,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -26,11 +31,25 @@ from textbeside.file_ops import (
     file_signature,
     write_text_file_atomic,
 )
-from textbeside.image_discovery import IMAGE_EXTENSIONS
+from textbeside.image_discovery import IMAGE_EXTENSIONS, discover_images
 from textbeside.image_view import ImageView
 from textbeside.pairing import PairStatus, resolve_pair
 
 TEXT_EXTENSIONS = {".md", ".txt"}
+_TaskResult = TypeVar("_TaskResult")
+
+
+class LoadingCancelled(Exception):
+    """A cancelled background result must never replace visible work."""
+
+
+def load_page_data(image_path: Path, text_path: Path | None):
+    """Read plain data in a worker; QPixmap and widgets stay on the UI thread."""
+    image = QImage(str(image_path))
+    if image.isNull():
+        raise ValueError(f"Could not load image: {image_path.name}")
+    text, signature = read_text_snapshot(text_path) if text_path else ("", None)
+    return image, text, signature
 
 
 def read_text_file(path: Path) -> str:
@@ -75,6 +94,16 @@ class MainWindow(QMainWindow):
         self.current_image_path: Path | None = None
         self.current_text_signature: FileSignature | None = None
         self.new_transcription = False
+        self._file_task_active = False
+        self._navigation_busy = False
+        self._directory_watcher = QFileSystemWatcher(self)
+        self._directory_refresh = QTimer(self)
+        self._directory_refresh.setSingleShot(True)
+        self._directory_refresh.setInterval(200)
+        self._directory_refresh.timeout.connect(self._refresh_navigation)
+        self._directory_watcher.directoryChanged.connect(
+            lambda _path: self._directory_refresh.start()
+        )
 
         self.text_path_label = QLabel("Text: no file selected")
         self.text_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -99,7 +128,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         self._create_actions()
-        self.statusBar().showMessage("Ready")
+        self._refresh_navigation()
 
     @staticmethod
     def _pane(header: QLabel, content: QWidget) -> QWidget:
@@ -145,8 +174,195 @@ class MainWindow(QMainWindow):
         view_menu.addAction(fit_image_action)
         view_menu.addAction(actual_size_action)
 
+        self.previous_action = QAction("&Previous page", self)
+        self.previous_action.setShortcut("Alt+Left")
+        self.previous_action.triggered.connect(lambda: self.navigate_page(-1))
+        self.next_action = QAction("&Next page", self)
+        self.next_action.setShortcut("Alt+Right")
+        self.next_action.triggered.connect(lambda: self.navigate_page(1))
+        navigation_menu = self.menuBar().addMenu("&Navigate")
+        navigation_menu.addAction(self.previous_action)
+        navigation_menu.addAction(self.next_action)
+        toolbar = self.addToolBar("Page navigation")
+        toolbar.setObjectName("pageNavigation")
+        toolbar.addAction(self.previous_action)
+        toolbar.addAction(self.next_action)
+
+    def _run_file_task(self, task: Callable[[], _TaskResult]) -> _TaskResult:
+        """Keep events and cancellation responsive while a daemon reads files.
+
+        Cancellation ignores the result; it cannot interrupt an operating-system
+        read already in progress. Workers never access widgets or write files.
+        """
+        results = Queue()
+
+        def run():
+            try:
+                results.put((True, task()))
+            except Exception as exc:  # noqa: BLE001 - transport worker errors to UI
+                results.put((False, exc))
+
+        progress = QProgressDialog("Loading pages…", "Cancel", 0, 0, self)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(250)
+        progress.setValue(0)
+        loop = QEventLoop(self)
+        timer = QTimer(self)
+        outcome = []
+
+        def poll():
+            if progress.wasCanceled():
+                loop.quit()
+                return
+            try:
+                outcome.append(results.get_nowait())
+            except Empty:
+                return
+            loop.quit()
+
+        timer.timeout.connect(poll)
+        progress.canceled.connect(loop.quit)
+        self._file_task_active = True
+        Thread(target=run, daemon=True).start()
+        timer.start(10)
+        try:
+            loop.exec()
+            if progress.wasCanceled() or not outcome:
+                raise LoadingCancelled
+            success, value = outcome[0]
+            if not success:
+                raise value
+            return value
+        finally:
+            timer.stop()
+            timer.deleteLater()
+            progress.close()
+            progress.deleteLater()
+            loop.deleteLater()
+            self._file_task_active = False
+
+    def _refresh_navigation(self) -> None:
+        """Watch the directory and refresh boundary actions after changes."""
+        if self._file_task_active or self._navigation_busy:
+            self._directory_refresh.start()
+            return
+        image_path = self.current_image_path
+        watched = self._directory_watcher.directories()
+        directory = str(image_path.parent) if image_path else None
+        if watched != ([directory] if directory else []):
+            if watched:
+                self._directory_watcher.removePaths(watched)
+            if directory:
+                self._directory_watcher.addPath(directory)
+        if image_path is None:
+            self.previous_action.setEnabled(False)
+            self.next_action.setEnabled(False)
+            self.statusBar().showMessage("Open a pair or start from an image")
+            return
+        try:
+            images = self._run_file_task(lambda: discover_images(image_path.parent))
+            index = images.index(image_path)
+        except LoadingCancelled:
+            self.statusBar().showMessage("Page refresh cancelled")
+            return
+        except (OSError, ValueError):
+            self.previous_action.setEnabled(False)
+            self.next_action.setEnabled(False)
+            self.statusBar().showMessage("Current image or directory unavailable")
+            return
+        self.previous_action.setEnabled(index > 0)
+        self.next_action.setEnabled(index + 1 < len(images))
+        self.statusBar().showMessage(f"Page {index + 1} of {len(images)}")
+
+    def _choose_counterpart(self, candidates: tuple[Path, ...]) -> Path | None:
+        """Never silently prefer one transcription format over another."""
+        box = QMessageBox(self)
+        box.setWindowTitle("Choose transcription")
+        box.setIcon(QMessageBox.Question)
+        box.setTextFormat(Qt.PlainText)
+        box.setText("Both Markdown and plain-text transcriptions exist. Choose one:")
+        buttons = {
+            box.addButton(path.name, QMessageBox.AcceptRole): path
+            for path in candidates
+        }
+        cancel = box.addButton(QMessageBox.Cancel)
+        box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
+        box.exec()
+        return buttons.get(box.clickedButton())
+
+    def navigate_page(self, direction: int) -> bool:
+        """Prevent overlapping navigation while nested dialogs process events."""
+        if self._navigation_busy or self._file_task_active:
+            return False
+        self._navigation_busy = True
+        try:
+            changed = self._navigate_page(direction)
+        finally:
+            self._navigation_busy = False
+        if changed:
+            self._refresh_navigation()
+        return changed
+
+    def _navigate_page(self, direction: int) -> bool:
+        """Load an adjacent page transactionally, retaining edits on failure."""
+        if direction not in (-1, 1):
+            raise ValueError("Navigation direction must be -1 or 1")
+        if self.current_image_path is None:
+            return False
+        try:
+            directory = self.current_image_path.parent
+            images = self._run_file_task(lambda: discover_images(directory))
+            if self.current_image_path not in images:
+                raise OSError(
+                    "The current image is no longer available. Reopen a pair."
+                )
+            index = images.index(self.current_image_path) + direction
+            if not 0 <= index < len(images):
+                self._refresh_navigation()
+                return False
+            image_path = images[index]
+            pairing = self._run_file_task(lambda: resolve_pair(image_path))
+            text_path = pairing.text_path
+            if pairing.status is PairStatus.CONFLICT:
+                text_path = self._choose_counterpart(pairing.candidates)
+                if text_path is None:
+                    return False
+            # Validate before asking the user to save or discard current edits.
+            image, text, signature = self._run_file_task(
+                lambda: load_page_data(image_path, text_path)
+            )
+        except LoadingCancelled:
+            return False
+        except (OSError, UnicodeError, ValueError) as exc:
+            QMessageBox.critical(self, "Could not change page", str(exc))
+            return False
+
+        if not self._confirm_save_or_discard_if_modified():
+            return False
+        try:
+            # Dialogs allow other programs to change the destination. Revalidate
+            # without discarding editor contents or silently choosing a new pair.
+            def revalidate():
+                if resolve_pair(image_path) != pairing:
+                    raise OSError("The destination pairing changed. Please try again.")
+                return load_page_data(image_path, text_path)
+
+            image, text, signature = self._run_file_task(revalidate)
+        except LoadingCancelled:
+            return False
+        except (OSError, UnicodeError, ValueError) as exc:
+            QMessageBox.critical(self, "Could not change page", str(exc))
+            return False
+        self._display_pair(
+            image_path, text_path, text, QPixmap.fromImage(image), signature
+        )
+        return True
+
     def open_pair_dialog(self) -> None:
         """Choose an image and transcription file without directory scanning."""
+        if self._file_task_active or self._navigation_busy:
+            return
         image_name, _ = QFileDialog.getOpenFileName(
             self,
             "Open source image",
@@ -213,6 +429,8 @@ class MainWindow(QMainWindow):
 
     def open_image_only_dialog(self) -> None:
         """Choose an unpaired source image for a new transcription."""
+        if self._file_task_active or self._navigation_busy:
+            return
         image_name, _ = QFileDialog.getOpenFileName(
             self,
             "Start transcription from image",
@@ -247,6 +465,7 @@ class MainWindow(QMainWindow):
         self.image_path_label.setToolTip(str(image_path))
         self.image_view.set_image(pixmap)
         self._update_text_label(False)
+        self._refresh_navigation()
 
     def open_pair(self, image_path: Path, text_path: Path) -> None:
         """Load both files, then replace the visible pair only if both succeed."""
@@ -257,7 +476,7 @@ class MainWindow(QMainWindow):
     def _display_pair(
         self,
         image_path: Path,
-        text_path: Path,
+        text_path: Path | None,
         text: str,
         pixmap: QPixmap,
         signature: FileSignature | None,
@@ -267,14 +486,15 @@ class MainWindow(QMainWindow):
         self.current_text_path = text_path
         self.current_image_path = image_path
         self.current_text_signature = signature
-        self.new_transcription = False
+        self.new_transcription = text_path is None
 
         self.editor.setPlainText(text)
         self.editor.document().setModified(False)
         self._update_text_label(False)
-        self.text_path_label.setToolTip(str(text_path))
+        self.text_path_label.setToolTip(str(text_path or image_path.parent))
         self.image_path_label.setToolTip(str(image_path))
         self.image_view.set_image(pixmap)
+        self._refresh_navigation()
 
     def _update_text_label(self, modified: bool | None = None) -> None:
         """Show the current transcription filename and save state."""
@@ -294,6 +514,8 @@ class MainWindow(QMainWindow):
 
     def save_current_text(self) -> bool:
         """Safely save the active transcription if one is open."""
+        if self._file_task_active:
+            return False
         if self.new_transcription:
             return self._save_new_transcription()
         if self.current_text_path is None:
@@ -442,7 +664,14 @@ class MainWindow(QMainWindow):
         return answer == QMessageBox.Discard
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self._file_task_active or self._navigation_busy:
+            event.ignore()
+            return
         if self._confirm_save_or_discard_if_modified():
+            self._directory_refresh.stop()
+            watched = self._directory_watcher.directories()
+            if watched:
+                self._directory_watcher.removePaths(watched)
             event.accept()
         else:
             event.ignore()
