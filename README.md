@@ -110,7 +110,7 @@ ruff format --check .
 
 Checkpoint 1's split-view, image controls and safe text saving are implemented on `main`. Checkpoint 2A adds nonrecursive image discovery and natural filename ordering; Checkpoint 2B adds explicit missing/matched/conflicting counterpart results. Previous/next navigation now connects these helpers to the interface. A folder browser, dedicated rescan command and page list remain outstanding.
 
-Checkpoint 2C's **File → New transcription from image…** workflow is implemented on `main`, merged in [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19). Manual filename-mismatch warnings and safer pair opening are also on `main`, merged in [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) for [#20](https://github.com/GeoffRiley/TextBeside/issues/20). The workflows were manually tested on Windows and Linux. Checkpoint 2D adds previous/next navigation under [#16](https://github.com/GeoffRiley/TextBeside/issues/16); its Windows/Linux walkthrough is pending.
+Checkpoint 2C's **File → New transcription from image…** workflow is implemented on `main`, merged in [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19). Manual filename-mismatch warnings and safer pair opening are also on `main`, merged in [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) for [#20](https://github.com/GeoffRiley/TextBeside/issues/20). The workflows were manually tested on Windows and Linux. Checkpoint 2D adds previous/next navigation under [#16](https://github.com/GeoffRiley/TextBeside/issues/16); Windows/Linux manual testing passed, and code review is pending.
 
 ### Open and edit an existing pair
 
@@ -138,7 +138,7 @@ Open an existing pair or start from an unpaired image, then use the **Previous p
 
 Each destination opens its same-basename transcription. A missing counterpart starts an empty in-memory transcription without creating a file; both `.md` and `.txt` prompt for an explicit choice, with Cancel as the default. Modified text prompts **Save / Discard / Cancel** before switching. Cancellation, failed saving or failed loading retains the current work. Intentional manual mismatches remain available; navigation uses the active image's directory and resolves each destination independently.
 
-The directory is rediscovered at each navigation. New or removed files affect the next sequence; if the current image disappears, reopen a valid pair. Destination files and pairing are rechecked after dialogs before switching. See the [Windows/Linux navigation walkthrough](docs/page-navigation-walkthrough.md); interactive validation is still pending.
+The directory is rediscovered at each navigation. New or removed files affect the next sequence; if the current image disappears, reopen a valid pair. Destination files and pairing are rechecked after dialogs before switching. See the [Windows/Linux navigation walkthrough](docs/page-navigation-walkthrough.md); Geoff confirmed all walkthrough tests passed on both platforms on 27 October 2026, with fast operation and predictable responses.
 
 ### Image controls
 
@@ -274,7 +274,7 @@ This is the most important early checkpoint. If zooming or panning feels awkward
 - [x] Resolve .md/.txt counterparts as missing, matched or conflicting (2B backend)
 - [x] Create a missing counterpart safely (2C, merged in PR #19)
 - [x] Warn before manually opening mismatched filename stems, preserving intentional mismatches and safe cancellation (#20, merged in PR #21)
-- [x] Add previous/next pair navigation (2D; cross-platform walkthrough pending)
+- [x] Add previous/next pair navigation (2D; Windows/Linux manual testing passed)
 - [x] Add natural filename ordering (2A backend)
 - [x] Protect modified text with Save / Discard / Cancel during page navigation
 - [x] Check external modification time and byte length before saving the active transcription
@@ -328,7 +328,7 @@ These are candidates, not commitments. Each should preserve the local-files-firs
 
 ## Current development focus
 
-The first vertical slice, Checkpoint 2A/2B's discovery and pairing helpers, Checkpoint 2C's new-transcription workflow, and #20's manual mismatch warning are on `main`. Windows and Linux manual testing has confirmed the new-transcription and manual-pair workflows. Checkpoint 2D implements [#16: previous/next paired-page navigation](https://github.com/GeoffRiley/TextBeside/issues/16), reusing discovery, counterpart resolution and save protection; review and Windows/Linux interactive validation remain before closing that slice. Directory selection and the overall paired-directory checkpoint remain incomplete.
+The first vertical slice, Checkpoint 2A/2B's discovery and pairing helpers, Checkpoint 2C's new-transcription workflow, and #20's manual mismatch warning are on `main`. Windows and Linux manual testing has confirmed the new-transcription and manual-pair workflows. Checkpoint 2D implements [#16: previous/next paired-page navigation](https://github.com/GeoffRiley/TextBeside/issues/16), reusing discovery, counterpart resolution and save protection; Windows/Linux interactive validation has passed and code review remains before closing that slice. Directory selection and the overall paired-directory checkpoint remain incomplete.
 
 ## Acceptance criteria for 0.1
 
