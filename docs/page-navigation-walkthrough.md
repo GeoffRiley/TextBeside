@@ -46,5 +46,5 @@ added or removed. There is no dedicated folder browser, rescan command or page l
 - Repeat unsaved Discard/Cancel and conflict-choice checks after this change.
 
 The initial walkthrough passed on both platforms on 27 October 2026. The added
-background-loading and directory-watcher behavior awaits targeted manual validation.
+background-loading and directory-watcher behavior was subsequently retested successfully on both platforms by Geoff.
 Record OS, results and any failures in the PR. No multi-image manifest is involved.
