@@ -4,7 +4,7 @@ Updated **27 October 2026**. This is a working plan for a small, part-time proje
 
 ## Current position
 
-Checkpoints 0 and 1 are complete. **Checkpoint 2 — reliable paired-file navigation — is in progress.** Its discovery and pairing helpers, image-first transcription workflow, and manual mismatch warning are merged on `main`. Previous/next navigation is implemented for #16 and awaits review and Windows/Linux validation; the full directory workflow is not complete.
+Checkpoints 0 and 1 are complete. **Checkpoint 2 — reliable paired-file navigation — is in progress.** Its discovery and pairing helpers, image-first transcription workflow, and manual mismatch warning are merged on `main`. Previous/next navigation is implemented for #16 and awaits code review after successful Windows/Linux validation; the full directory workflow is not complete.
 
 | Checkpoint | Status as of 27 Oct 2026 | Timing | What it proves | Live progress |
 | --- | --- | --- | --- | --- |
@@ -43,7 +43,7 @@ gantt
 | 2B: counterpart resolution | Complete — [#14](https://github.com/GeoffRiley/TextBeside/issues/14) | Explicit missing/matched/conflicting results for same-basename `.md`/`.txt` files; the navigation UI now offers explicit conflict choices. |
 | 2C: start from an unpaired image | Complete — [#15](https://github.com/GeoffRiley/TextBeside/issues/15), merged [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19) | Empty in-memory transcription, first-save format choice and no-overwrite creation; manually tested on Windows and Linux. |
 | Manual filename-mismatch safeguard | Complete — [#20](https://github.com/GeoffRiley/TextBeside/issues/20), merged [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) | Explicit **Open anyway**, safe cancellation and preserved intentional mismatches; Windows/Linux manual confirmation. Review follow-up detects transcription changes during loading. |
-| 2D: previous/next paired-page navigation | **Implemented; validation pending — [#16](https://github.com/GeoffRiley/TextBeside/issues/16)** | Toolbar/menu controls and Alt+Left/Right reuse discovery, counterpart resolution and save protection; cross-platform walkthrough and review remain. |
+| 2D: previous/next paired-page navigation | **Implemented; review pending — [#16](https://github.com/GeoffRiley/TextBeside/issues/16)** | Toolbar/menu controls and Alt+Left/Right reuse discovery, counterpart resolution and save protection; Windows/Linux walkthrough passed; code review remains. |
 | Complete directory workflow and checkpoint review | Outstanding — [#3](https://github.com/GeoffRiley/TextBeside/issues/3) | Dedicated folder opening/rescanning remains; validate navigation and conflict handling against the parent checkpoint before closure. |
 
 The navigation implementation has **75 passing automated tests** across the application suite, with Ruff lint and formatting checks passing. This is a dated evidence snapshot, not a fixed test-count target. The [manual-pair walkthrough](docs/manual-pair-warning-walkthrough.md) documents interactive checks.
@@ -53,7 +53,7 @@ The navigation implementation has **75 passing automated tests** across the appl
 - Implemented: Previous / Next controls for the naturally ordered images in the working directory, with predictable first/last-page behavior and no unexpected wrapping.
 - Implemented: load the corresponding transcription or a safe missing-counterpart state. Require a user decision for conflicting `.md`/`.txt` counterparts.
 - Implemented: preserve **Save / Discard / Cancel** protection, including cancelled or failed first saves. Cancelled navigation or unavailable files must retain the current work and unsaved edits.
-- Automated integration checks cover ordering, missing/conflicting counterparts, cancellation and failures. Complete the [Linux/Windows walkthrough](docs/page-navigation-walkthrough.md) using the sample pages and temporary files before closing #16.
+- Automated integration checks cover ordering, missing/conflicting counterparts, cancellation and failures. Geoff confirmed all [Linux/Windows walkthrough](docs/page-navigation-walkthrough.md) tests passed on both platforms on 27 October 2026, with fast operation and predictable responses. Code review remains before closing #16.
 - Retain manual **Open pair**, including intentional mismatches and the new warning.
 
 A multi-image manifest or control file associating multiple images with one transcription is **outside 0.1**.
@@ -67,7 +67,7 @@ A multi-image manifest or control file associating multiple images with one tran
 ## How to use the plan
 
 - The [README](README.md) describes current usage, product scope and longer-term ideas. This page records checkpoint status, provisional timing and next steps. Linked issues hold acceptance checks and evidence.
-- Work on the current checkpoint first, in small implementation slices. Complete review and cross-platform validation for [#16](https://github.com/GeoffRiley/TextBeside/issues/16), then assess the remaining directory UI work in #3.
+- Work on the current checkpoint first, in small implementation slices. Complete code review for [#16](https://github.com/GeoffRiley/TextBeside/issues/16), then assess the remaining directory UI work in #3.
 - A checkpoint is complete after its hands-on demonstration and safety checks, with evidence recorded in its issue. Carry a missing feature forward only by documenting the scope change.
 - Review estimates at each checkpoint. A safe save path takes precedence over a calendar target.
 - Update **README.md and ROADMAP.md alongside relevant feature, workflow or status changes**, so merged documentation describes `main` accurately.
