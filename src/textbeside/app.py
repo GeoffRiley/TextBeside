@@ -9,13 +9,15 @@ from queue import Empty, Queue
 from threading import Thread
 from typing import TypeVar
 
-from PySide6.QtCore import QEventLoop, QFileSystemWatcher, Qt, QTimer
+from PySide6.QtCore import QEventLoop, QFileSystemWatcher, QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QDockWidget,
     QFileDialog,
     QInputDialog,
     QLabel,
+    QListView,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -33,6 +35,7 @@ from textbeside.file_ops import (
 )
 from textbeside.image_discovery import IMAGE_EXTENSIONS, discover_images
 from textbeside.image_view import ImageView
+from textbeside.page_list import PageListModel
 from textbeside.pairing import PairStatus, resolve_pair
 
 TEXT_EXTENSIONS = {".md", ".txt"}
@@ -95,6 +98,8 @@ class MainWindow(QMainWindow):
         self.current_text_signature: FileSignature | None = None
         self.new_transcription = False
         self._file_task_active = False
+        self._outstanding_worker: Thread | None = None
+        self._listed_directory: Path | None = None
         self._navigation_busy = False
         self._directory_watcher = QFileSystemWatcher(self)
         self._directory_refresh = QTimer(self)
@@ -128,6 +133,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         self._create_actions()
+        self._create_page_list()
         self._refresh_navigation()
 
     @staticmethod
@@ -140,6 +146,13 @@ class MainWindow(QMainWindow):
         return pane
 
     def _create_actions(self) -> None:
+        folder_action = QAction("Open &folder…", self)
+        folder_action.setShortcut("Ctrl+Shift+O")
+        folder_action.triggered.connect(self.open_folder_dialog)
+        self.rescan_action = QAction("&Rescan folder", self)
+        self.rescan_action.setShortcut("F5")
+        self.rescan_action.triggered.connect(self.rescan_folder)
+
         open_pair_action = QAction("&Open pair…", self)
         open_pair_action.setShortcut(QKeySequence.Open)
         open_pair_action.triggered.connect(self.open_pair_dialog)
@@ -164,6 +177,7 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
 
         file_menu = self.menuBar().addMenu("&File")
+        file_menu.addAction(folder_action)
         file_menu.addAction(open_pair_action)
         file_menu.addAction(new_action)
         file_menu.addAction(save_action)
@@ -171,6 +185,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(exit_action)
 
         view_menu = self.menuBar().addMenu("&View")
+        self.view_menu = view_menu
         view_menu.addAction(fit_image_action)
         view_menu.addAction(actual_size_action)
 
@@ -183,10 +198,130 @@ class MainWindow(QMainWindow):
         navigation_menu = self.menuBar().addMenu("&Navigate")
         navigation_menu.addAction(self.previous_action)
         navigation_menu.addAction(self.next_action)
+        navigation_menu.addSeparator()
+        navigation_menu.addAction(self.rescan_action)
         toolbar = self.addToolBar("Page navigation")
         toolbar.setObjectName("pageNavigation")
         toolbar.addAction(self.previous_action)
         toolbar.addAction(self.next_action)
+        toolbar.addSeparator()
+        toolbar.addAction(self.rescan_action)
+
+    def _create_page_list(self) -> None:
+        self.folder_label = QLabel("No folder open")
+        self.folder_label.setTextFormat(Qt.PlainText)
+        self.folder_label.setWordWrap(True)
+        self.watch_status_label = QLabel()
+        self.watch_status_label.setWordWrap(True)
+        self.page_model = PageListModel(self)
+        self.page_list = QListView()
+        self.page_list.setModel(self.page_model)
+        self.page_list.setUniformItemSizes(True)
+        self.page_list.setLayoutMode(QListView.Batched)
+        self.page_list.setBatchSize(256)
+        self.page_list.setAccessibleName("Pages in working folder")
+        self.page_list.selectionModel().currentChanged.connect(
+            lambda current, _previous: self._select_page(current.row())
+        )
+        pane = QWidget()
+        layout = QVBoxLayout(pane)
+        layout.addWidget(self.folder_label)
+        layout.addWidget(self.watch_status_label)
+        layout.addWidget(self.page_list)
+        dock = QDockWidget("Pages", self)
+        dock.setObjectName("pagesDock")
+        dock.setWidget(pane)
+        self.addDockWidget(Qt.LeftDockWidgetArea, dock)
+        self.page_dock = dock
+        self.view_menu.addAction(dock.toggleViewAction())
+
+    def _restore_page_selection(self) -> None:
+        with QSignalBlocker(self.page_list.selectionModel()):
+            self.page_list.setCurrentIndex(
+                self.page_model.index(self.page_model.row_for(self.current_image_path))
+            )
+
+    def _set_page_list(self, images: list[Path]) -> None:
+        with QSignalBlocker(self.page_list.selectionModel()):
+            self.page_model.replace(images)
+            self._restore_page_selection()
+        self._listed_directory = (
+            self.current_image_path.parent if self.current_image_path else None
+        )
+        directory = (
+            str(self._listed_directory) if self._listed_directory else "No folder open"
+        )
+        self.folder_label.setText(directory)
+        self.folder_label.setToolTip(directory)
+        row = self.page_list.currentIndex().row()
+        self.previous_action.setEnabled(row > 0)
+        self.next_action.setEnabled(0 <= row < len(images) - 1)
+        self.rescan_action.setEnabled(self.current_image_path is not None)
+
+    def _select_page(self, row: int) -> None:
+        if not 0 <= row < self.page_model.rowCount():
+            return
+        path = self.page_model.paths[row]
+        if path == self.current_image_path:
+            return
+        if self._navigation_busy or self._file_task_active:
+            self._restore_page_selection()
+            return
+        self._navigation_busy = True
+        try:
+            changed = self._open_page(path)
+        finally:
+            self._navigation_busy = False
+            self._restore_page_selection()
+        if changed:
+            self._refresh_navigation()
+
+    def open_folder_dialog(self) -> None:
+        if self._navigation_busy or self._file_task_active:
+            return
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Open source folder",
+            str(self.current_image_path.parent) if self.current_image_path else "",
+        )
+        if directory:
+            self.open_folder(Path(directory))
+
+    def open_folder(self, directory: Path) -> bool:
+        """Open the first naturally ordered image, committing only on success."""
+        if self._navigation_busy or self._file_task_active:
+            return False
+        self._navigation_busy = True
+        changed = False
+        try:
+            images = self._run_file_task(lambda: discover_images(directory))
+            if not images:
+                QMessageBox.information(
+                    self,
+                    "No source images",
+                    "No supported images were found in this folder.",
+                )
+                return False
+            changed = self._open_page(images[0])
+        except LoadingCancelled:
+            return False
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, "Could not open folder", str(exc))
+            return False
+        finally:
+            self._navigation_busy = False
+        if changed:
+            # Publish the successful discovery before any optional rescan can
+            # fail or be cancelled. Never keep the previous folder's pages.
+            self._set_page_list(images)
+            self._refresh_navigation()
+            self.page_dock.show()
+        return changed
+
+    def rescan_folder(self) -> None:
+        """Refresh the listing without reloading or discarding the editor."""
+        if not self._navigation_busy and not self._file_task_active:
+            self._refresh_navigation(report_errors=True)
 
     def _run_file_task(self, task: Callable[[], _TaskResult]) -> _TaskResult:
         """Keep events and cancellation responsive while a daemon reads files.
@@ -194,6 +329,12 @@ class MainWindow(QMainWindow):
         Cancellation ignores the result; it cannot interrupt an operating-system
         read already in progress. Workers never access widgets or write files.
         """
+        if self._outstanding_worker is not None and self._outstanding_worker.is_alive():
+            message = (
+                "Previous file read is still finishing. Please retry when it completes."
+            )
+            self.statusBar().showMessage(message)
+            raise LoadingCancelled(message)
         results = Queue()
 
         def run():
@@ -223,7 +364,8 @@ class MainWindow(QMainWindow):
         timer.timeout.connect(poll)
         progress.canceled.connect(loop.quit)
         self._file_task_active = True
-        Thread(target=run, daemon=True).start()
+        self._outstanding_worker = Thread(target=run, daemon=True)
+        self._outstanding_worker.start()
         timer.start(10)
         try:
             loop.exec()
@@ -241,19 +383,42 @@ class MainWindow(QMainWindow):
             loop.deleteLater()
             self._file_task_active = False
 
-    def _refresh_navigation(self) -> None:
+    def _sync_directory_watches(self, directory: Path | None) -> None:
+        """A parent watch survives removal/recreation of the working folder."""
+        wanted = {str(directory), str(directory.parent)} if directory else set()
+        watched = set(self._directory_watcher.directories())
+        obsolete = watched - wanted
+        if obsolete:
+            self._directory_watcher.removePaths(list(obsolete))
+        failed = []
+        for path in wanted - watched:
+            if not self._directory_watcher.addPath(path):
+                failed.append(path)
+        current = set(self._directory_watcher.directories())
+        if directory and str(directory) not in current:
+            self.watch_status_label.setText(
+                "Automatic page updates unavailable. Use Rescan folder (F5)."
+            )
+        elif failed:
+            self.watch_status_label.setText(
+                "Folder recovery watch unavailable. Rescan (F5) if the folder is recreated."
+            )
+        else:
+            self.watch_status_label.clear()
+
+    def _refresh_navigation(self, report_errors: bool = False) -> None:
         """Watch the directory and refresh boundary actions after changes."""
         if self._file_task_active or self._navigation_busy:
             self._directory_refresh.start()
             return
         image_path = self.current_image_path
-        watched = self._directory_watcher.directories()
-        directory = str(image_path.parent) if image_path else None
-        if watched != ([directory] if directory else []):
-            if watched:
-                self._directory_watcher.removePaths(watched)
-            if directory:
-                self._directory_watcher.addPath(directory)
+        self.rescan_action.setEnabled(image_path is not None)
+        directory = image_path.parent if image_path else None
+        if directory != self._listed_directory:
+            # A newly committed manual pair must never retain another folder's
+            # selectable rows, even if discovery subsequently fails or cancels.
+            self._set_page_list([])
+        self._sync_directory_watches(directory)
         if image_path is None:
             self.previous_action.setEnabled(False)
             self.next_action.setEnabled(False)
@@ -261,11 +426,21 @@ class MainWindow(QMainWindow):
             return
         try:
             images = self._run_file_task(lambda: discover_images(image_path.parent))
+            self._set_page_list(images)
+            if image_path not in images:
+                self.previous_action.setEnabled(False)
+                self.next_action.setEnabled(False)
+                self.statusBar().showMessage(
+                    "Current image missing; select a page to continue"
+                )
+                return
             index = images.index(image_path)
-        except LoadingCancelled:
-            self.statusBar().showMessage("Page refresh cancelled")
+        except LoadingCancelled as exc:
+            self.statusBar().showMessage(str(exc) or "Page refresh cancelled")
             return
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            if report_errors:
+                QMessageBox.critical(self, "Could not rescan folder", str(exc))
             self.previous_action.setEnabled(False)
             self.next_action.setEnabled(False)
             self.statusBar().showMessage("Current image or directory unavailable")
@@ -322,6 +497,16 @@ class MainWindow(QMainWindow):
                 self._refresh_navigation()
                 return False
             image_path = images[index]
+        except LoadingCancelled:
+            return False
+        except (OSError, UnicodeError, ValueError) as exc:
+            QMessageBox.critical(self, "Could not change page", str(exc))
+            return False
+        return self._open_page(image_path)
+
+    def _open_page(self, image_path: Path) -> bool:
+        """Shared transactional transition for folder, list and adjacent pages."""
+        try:
             pairing = self._run_file_task(lambda: resolve_pair(image_path))
             text_path = pairing.text_path
             if pairing.status is PairStatus.CONFLICT:

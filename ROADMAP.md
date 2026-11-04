@@ -1,20 +1,20 @@
 # Development roadmap
 
-Updated **27 October 2026**. This is a working plan for a small, part-time project. Completed work is recorded separately from **provisional planning windows**, which are not release promises or assigned deadlines. Progress is judged by the exit evidence in the linked GitHub issues.
+Updated **4 November 2026**. This is a working plan for a small, part-time project. Completed work is recorded separately from **provisional planning windows**, which are not release promises or assigned deadlines. Progress is judged by the exit evidence in the linked GitHub issues.
 
 ## Current position
 
-Checkpoints 0 and 1 are complete. **Checkpoint 2 — reliable paired-file navigation — is in progress.** Its discovery and pairing helpers, image-first transcription workflow, and manual mismatch warning are merged on `main`. Previous/next navigation is complete under [#16](https://github.com/GeoffRiley/TextBeside/issues/16) and [PR #24](https://github.com/GeoffRiley/TextBeside/pull/24), including review fixes and successful Windows/Linux retesting; the full directory workflow is not complete.
+**Checkpoints 0, 1 and 2 are complete.** Phase 2 now includes discovery, counterpart resolution, new transcriptions, safe page navigation, manual mismatch warnings, Open folder, Rescan and the docking Pages panel. The final folder-interface review fixes passed automated checks and Windows/Linux retesting. [PR #25](https://github.com/GeoffRiley/TextBeside/pull/25) completes [#3](https://github.com/GeoffRiley/TextBeside/issues/3). Checkpoint 3 — dependable daily transcription — is next; later timing remains provisional.
 
-| Checkpoint | Status as of 27 Oct 2026 | Timing | What it proves | Live progress |
+| Checkpoint | Status as of 4 Nov 2026 | Timing | What it proves | Live progress |
 | --- | --- | --- | --- | --- |
 | 0. Working agreement | Complete | Closed 21 Sep 2026 | Contribution rules and first implementation tasks are ready | [#1](https://github.com/GeoffRiley/TextBeside/issues/1) |
 | 1. Split-view prototype | Complete | Closed 4 Oct 2026 | One image/text pair can be edited safely; zoom and pan feel good | [#2](https://github.com/GeoffRiley/TextBeside/issues/2) |
-| 2. Pair navigation | In progress | Current work; provisional review by 13 Dec 2026 | A directory of pages can be transcribed without mismatches or overwrites | [#3](https://github.com/GeoffRiley/TextBeside/issues/3) |
+| 2. Pair navigation | Complete | Closed 4 Nov 2026 | A directory of pages can be transcribed without mismatches or overwrites | [#3](https://github.com/GeoffRiley/TextBeside/issues/3) |
 | 3. Daily use | Planned | Provisional: 14 Dec 2026–7 Feb 2027, after Checkpoint 2 | A longer session is predictable and recoverable | [#4](https://github.com/GeoffRiley/TextBeside/issues/4) |
 | 4. Alpha | Planned | Provisional: 8 Feb–7 Mar 2027, after Checkpoint 3 | Another person can install and use 0.1 on Linux and Windows | [#5](https://github.com/GeoffRiley/TextBeside/issues/5) |
 
-The original September planning windows have been superseded for completed work. Future review windows are retained as provisional estimates; reassess them when Checkpoint 2 closes rather than treating them as commitments.
+The original September planning windows have been superseded for completed work. Future review windows are retained as provisional estimates; reassess them when planning Checkpoint 3 rather than treating them as commitments.
 
 ```mermaid
 gantt
@@ -24,9 +24,9 @@ gantt
     section Completed
     Checkpoint 0 closed :milestone, done, c0, 2026-09-21, 0d
     Checkpoint 1 closed :milestone, done, c1, 2026-10-04, 0d
-    section Current workflow
-    Checkpoint 2 remaining work (planning window) :active, c2, 2026-10-26, 2026-12-13
-    Checkpoint 2 provisional review :milestone, 2026-12-13, 0d
+    section Completed workflow
+    Checkpoint 2 implementation :done, c2, 2026-10-23, 2026-11-04
+    Checkpoint 2 closed :milestone, done, 2026-11-04, 0d
     section Planned reliability
     Recovery, usability, tests :c3, 2026-12-14, 2027-02-07
     Checkpoint 3 provisional review :milestone, 2027-02-07, 0d
@@ -35,18 +35,18 @@ gantt
     Provisional alpha decision :milestone, 2027-03-07, 0d
 ```
 
-## Checkpoint 2: completed and remaining work
+## Checkpoint 2: completed work
 
 | Slice | Status | Evidence and limits |
 | --- | --- | --- |
-| 2A: image discovery and natural ordering | Complete — [#13](https://github.com/GeoffRiley/TextBeside/issues/13) | Nonrecursive discovery and deterministic natural ordering are on `main`; folder-selection UI remains to be connected. |
+| 2A: image discovery and natural ordering | Complete — [#13](https://github.com/GeoffRiley/TextBeside/issues/13) | Nonrecursive discovery and deterministic natural ordering are on `main`; discovery is connected to Open folder and the Pages panel. |
 | 2B: counterpart resolution | Complete — [#14](https://github.com/GeoffRiley/TextBeside/issues/14) | Explicit missing/matched/conflicting results for same-basename `.md`/`.txt` files; the navigation UI now offers explicit conflict choices. |
 | 2C: start from an unpaired image | Complete — [#15](https://github.com/GeoffRiley/TextBeside/issues/15), merged [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19) | Empty in-memory transcription, first-save format choice and no-overwrite creation; manually tested on Windows and Linux. |
 | Manual filename-mismatch safeguard | Complete — [#20](https://github.com/GeoffRiley/TextBeside/issues/20), merged [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) | Explicit **Open anyway**, safe cancellation and preserved intentional mismatches; Windows/Linux manual confirmation. Review follow-up detects transcription changes during loading. |
 | 2D: previous/next paired-page navigation | **Complete — [#16](https://github.com/GeoffRiley/TextBeside/issues/16)** | Toolbar/menu controls and Alt+Left/Right reuse discovery, counterpart resolution and save protection; Windows/Linux walkthrough and review-fix retest passed; all initial review findings are resolved. |
-| Complete directory workflow and checkpoint review | Outstanding — [#3](https://github.com/GeoffRiley/TextBeside/issues/3) | Dedicated folder opening/rescanning remains; validate navigation and conflict handling against the parent checkpoint before closure. |
+| Complete directory workflow and checkpoint review | Complete — [#3](https://github.com/GeoffRiley/TextBeside/issues/3) | Open folder, explicit Rescan and a hideable naturally ordered page list reuse the shared transactional page loader. Windows/Linux folder walkthrough and review-fix retest passed on 4 November 2026; all review findings are resolved in PR #25. |
 
-The navigation implementation has **79 passing automated tests** across the application suite, with Ruff lint and formatting checks passing. This is a dated evidence snapshot, not a fixed test-count target. The [manual-pair walkthrough](docs/manual-pair-warning-walkthrough.md) documents interactive checks.
+The directory-interface implementation has **104 passing automated tests** across the application suite, with Ruff lint and formatting checks passing. This is a dated evidence snapshot, not a fixed test-count target. The [manual-pair walkthrough](docs/manual-pair-warning-walkthrough.md) documents interactive checks.
 
 ## Completed slice: Issue #16
 
@@ -58,6 +58,13 @@ The navigation implementation has **79 passing automated tests** across the appl
 
 A multi-image manifest or control file associating multiple images with one transcription is **outside 0.1**.
 
+## Final Phase 2 evidence
+
+- Geoff confirmed the [Windows/Linux folder workflow walkthrough](docs/folder-workflow-walkthrough.md) passed on both platforms on 4 November 2026, including the docking panel.
+- Review follow-ups add a lazy batched page model, one-outstanding-worker limit, consistent list publication after folder opening, parent-folder watch recovery and visible watcher failure notices. Automated regressions and targeted Windows/Linux retesting pass; all review findings are resolved.
+- Final evidence and completed exit checks are recorded in [#3](https://github.com/GeoffRiley/TextBeside/issues/3); Phase 2 is complete.
+- Phase 3 remains next; no multi-image manifest is introduced.
+
 ## Later checkpoint gates
 
 **Checkpoint 3 — daily use:** complete the remaining image controls and view restoration, find/replace and keyboard accessibility, persistent window/recent-folder state, and a tested autosave/recovery policy. Record a 45-minute transcription session and address data-loss defects before declaring the checkpoint complete. Existing fit-image/100% controls and save protection provide a starting point, not completion of this gate.
@@ -67,7 +74,7 @@ A multi-image manifest or control file associating multiple images with one tran
 ## How to use the plan
 
 - The [README](README.md) describes current usage, product scope and longer-term ideas. This page records checkpoint status, provisional timing and next steps. Linked issues hold acceptance checks and evidence.
-- Work on the current checkpoint first, in small implementation slices. With [#16](https://github.com/GeoffRiley/TextBeside/issues/16) complete, assess the remaining folder-opening, rescan and page-list interface work in [#3](https://github.com/GeoffRiley/TextBeside/issues/3).
+- Work on the current checkpoint first, in small implementation slices. With Phase 2 complete, plan the small implementation slices for [Checkpoint 3 — daily use](https://github.com/GeoffRiley/TextBeside/issues/4).
 - A checkpoint is complete after its hands-on demonstration and safety checks, with evidence recorded in its issue. Carry a missing feature forward only by documenting the scope change.
 - Review estimates at each checkpoint. A safe save path takes precedence over a calendar target.
 - Update **README.md and ROADMAP.md alongside relevant feature, workflow or status changes**, so merged documentation describes `main` accurately.
