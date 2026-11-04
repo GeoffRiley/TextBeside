@@ -4,7 +4,7 @@ Updated **4 November 2026**. This is a working plan for a small, part-time proje
 
 ## Current position
 
-Checkpoints 0 and 1 are complete. **Checkpoint 2 — reliable paired-file navigation — is in progress.** Its discovery and pairing helpers, image-first transcription workflow, and manual mismatch warning are merged on `main`. Previous/next navigation is complete under [#16](https://github.com/GeoffRiley/TextBeside/issues/16) and [PR #24](https://github.com/GeoffRiley/TextBeside/pull/24), including review fixes and successful Windows/Linux retesting; the final Open folder / Rescan / Pages interface is implemented and awaits Windows/Linux validation and code review before Checkpoint 2 closes.
+Checkpoints 0 and 1 are complete. **Checkpoint 2 — reliable paired-file navigation — is in progress.** Its discovery and pairing helpers, image-first transcription workflow, and manual mismatch warning are merged on `main`. Previous/next navigation is complete under [#16](https://github.com/GeoffRiley/TextBeside/issues/16) and [PR #24](https://github.com/GeoffRiley/TextBeside/pull/24), including review fixes and successful Windows/Linux retesting; the final Open folder / Rescan / Pages interface is implemented and has passed Windows/Linux validation and awaits code review before Checkpoint 2 closes.
 
 | Checkpoint | Status as of 4 Nov 2026 | Timing | What it proves | Live progress |
 | --- | --- | --- | --- | --- |
@@ -44,7 +44,7 @@ gantt
 | 2C: start from an unpaired image | Complete — [#15](https://github.com/GeoffRiley/TextBeside/issues/15), merged [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19) | Empty in-memory transcription, first-save format choice and no-overwrite creation; manually tested on Windows and Linux. |
 | Manual filename-mismatch safeguard | Complete — [#20](https://github.com/GeoffRiley/TextBeside/issues/20), merged [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) | Explicit **Open anyway**, safe cancellation and preserved intentional mismatches; Windows/Linux manual confirmation. Review follow-up detects transcription changes during loading. |
 | 2D: previous/next paired-page navigation | **Complete — [#16](https://github.com/GeoffRiley/TextBeside/issues/16)** | Toolbar/menu controls and Alt+Left/Right reuse discovery, counterpart resolution and save protection; Windows/Linux walkthrough and review-fix retest passed; all initial review findings are resolved. |
-| Complete directory workflow and checkpoint review | Implemented; final validation pending — [#3](https://github.com/GeoffRiley/TextBeside/issues/3) | Open folder, explicit Rescan and a hideable naturally ordered page list reuse the shared transactional page loader. Complete the folder walkthrough and review before closure. |
+| Complete directory workflow and checkpoint review | Implemented and tested; review pending — [#3](https://github.com/GeoffRiley/TextBeside/issues/3) | Open folder, explicit Rescan and a hideable naturally ordered page list reuse the shared transactional page loader. Windows/Linux folder walkthrough passed on 4 November 2026; code review and merge remain before closure. |
 
 The directory-interface implementation has **96 passing automated tests** across the application suite, with Ruff lint and formatting checks passing. This is a dated evidence snapshot, not a fixed test-count target. The [manual-pair walkthrough](docs/manual-pair-warning-walkthrough.md) documents interactive checks.
 
@@ -60,7 +60,7 @@ A multi-image manifest or control file associating multiple images with one tran
 
 ## Final Phase 2 validation
 
-- Complete the [Windows/Linux folder workflow walkthrough](docs/folder-workflow-walkthrough.md), covering direct page selection, empty/unavailable folders, Rescan with unsaved edits, missing/conflicting counterparts and recovery after the current image disappears.
+- Geoff confirmed the [Windows/Linux folder workflow walkthrough](docs/folder-workflow-walkthrough.md) passed on both platforms on 4 November 2026, including the docking panel.
 - Review the shared folder/list/Previous/Next transition and cancellation behavior.
 - Record final evidence in [#3](https://github.com/GeoffRiley/TextBeside/issues/3), update its exit checks and close it only after the final walkthrough and review pass.
 - Phase 3 remains next; no multi-image manifest is introduced.
@@ -74,7 +74,7 @@ A multi-image manifest or control file associating multiple images with one tran
 ## How to use the plan
 
 - The [README](README.md) describes current usage, product scope and longer-term ideas. This page records checkpoint status, provisional timing and next steps. Linked issues hold acceptance checks and evidence.
-- Work on the current checkpoint first, in small implementation slices. With [#16](https://github.com/GeoffRiley/TextBeside/issues/16) complete, complete final review and Windows/Linux validation of the folder-opening, rescan and page-list interface in [#3](https://github.com/GeoffRiley/TextBeside/issues/3).
+- Work on the current checkpoint first, in small implementation slices. With [#16](https://github.com/GeoffRiley/TextBeside/issues/16) complete, complete final review and merge of the folder-opening, rescan and page-list interface in [#3](https://github.com/GeoffRiley/TextBeside/issues/3).
 - A checkpoint is complete after its hands-on demonstration and safety checks, with evidence recorded in its issue. Carry a missing feature forward only by documenting the scope change.
 - Review estimates at each checkpoint. A safe save path takes precedence over a calendar target.
 - Update **README.md and ROADMAP.md alongside relevant feature, workflow or status changes**, so merged documentation describes `main` accurately.
