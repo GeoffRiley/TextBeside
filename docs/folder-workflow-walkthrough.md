@@ -1,6 +1,6 @@
 # Phase 2 folder workflow: Windows and Linux walkthrough
 
-Status: automated checks pass; interactive validation and code review remain.
+Status: 96 automated tests pass. Geoff confirmed testing passed on Windows and Linux on 4 November 2026, with positive feedback on the docking panel. Code review and merge remain.
 Use temporary copies of `examples/field-notes`, never edit committed samples.
 
 1. Choose File → Open folder (Ctrl+Shift+O) and select the sample-copy folder.
