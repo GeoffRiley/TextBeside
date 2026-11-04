@@ -1,6 +1,6 @@
 # Phase 2 folder workflow: Windows and Linux walkthrough
 
-Status: 104 automated tests pass. Geoff confirmed testing passed on Windows and Linux on 4 November 2026, with positive feedback on the docking panel. Review follow-ups below need targeted Windows/Linux retesting, code review and merge.
+Status: 104 automated tests pass. Geoff confirmed testing passed on Windows and Linux on 4 November 2026, with positive feedback on the docking panel. Geoff also successfully retested the review follow-ups on both platforms; all review findings are resolved.
 Use temporary copies of `examples/field-notes`, never edit committed samples.
 
 1. Choose File → Open folder (Ctrl+Shift+O) and select the sample-copy folder.
@@ -34,8 +34,7 @@ Use temporary copies of `examples/field-notes`, never edit committed samples.
     the warning remains, saves use the selected text file, and directory navigation
     remains anchored to the image.
 
-Record platform and results in the PR. Phase 2 remains open until this walkthrough
-and review pass. No manifest, import, conversion, recursion or file renaming is added.
+Results and review follow-up evidence are recorded in PR #25. Phase 2 is complete. No manifest, import, conversion, recursion or file renaming is added.
 
 
 ## Review follow-up checks
@@ -55,4 +54,4 @@ and review pass. No manifest, import, conversion, recursion or file renaming is 
   be established, confirm the Pages panel explains that F5/manual Rescan is usable.
 
 The original Windows/Linux test evidence remains recorded above. These later
-changes are covered by automated regressions but await targeted manual retesting.
+changes passed automated regressions and Geoff's targeted manual retesting on both platforms.

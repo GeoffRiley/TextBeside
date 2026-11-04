@@ -108,7 +108,7 @@ ruff format --check .
 
 ## Current prototype: usage and status
 
-Checkpoint 1's split-view, image controls and safe text saving are implemented on `main`. Checkpoint 2A adds nonrecursive image discovery and natural filename ordering; Checkpoint 2B adds explicit missing/matched/conflicting counterpart results. Previous/next navigation now connects these helpers to the interface. Open folder, Rescan and a Pages panel now complete the directory interface; their Windows/Linux walkthrough passed; code review remains.
+Checkpoint 1's split-view, image controls and safe text saving are implemented on `main`. Checkpoint 2A adds nonrecursive image discovery and natural filename ordering; Checkpoint 2B adds explicit missing/matched/conflicting counterpart results. Previous/next navigation now connects these helpers to the interface. Open folder, Rescan and a Pages panel now complete the directory interface; their Windows/Linux walkthrough, review fixes and targeted retest are complete.
 
 Checkpoint 2C's **File → New transcription from image…** workflow is implemented on `main`, merged in [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19). Manual filename-mismatch warnings and safer pair opening are also on `main`, merged in [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) for [#20](https://github.com/GeoffRiley/TextBeside/issues/20). The workflows were manually tested on Windows and Linux. Checkpoint 2D adds previous/next navigation under [#16](https://github.com/GeoffRiley/TextBeside/issues/16); Windows/Linux testing and review follow-ups are complete in [PR #24](https://github.com/GeoffRiley/TextBeside/pull/24).
 
@@ -118,7 +118,7 @@ Choose **File → Open folder…** (**Ctrl+Shift+O**) to open the first supporte
 
 Choose **Navigate → Rescan folder** (**F5**), or its toolbar button, to refresh the listing without reloading the active transcription or clearing unsaved edits. Directory watching also updates the list automatically; a parent-folder watch reconnects when the working folder is removed and recreated. If automatic watching is unavailable, the Pages panel explains that **Rescan folder (F5)** remains available. If the active image disappears, its text remains available; select another listed page to continue. An empty or unreadable new folder leaves the current work and folder unchanged. Only supported files directly inside the folder are listed; no imports, conversions or file writes occur merely by opening or rescanning.
 
-See the [Windows/Linux folder walkthrough](docs/folder-workflow-walkthrough.md). Geoff confirmed all testing passed on Windows and Linux on 4 November 2026, including the docking panel. Review follow-ups improve large-folder listing, cancelled-read limits, watcher recovery and panel consistency. These follow-ups still need a targeted Windows/Linux retest and code review.
+See the [Windows/Linux folder walkthrough](docs/folder-workflow-walkthrough.md). Geoff confirmed all testing passed on Windows and Linux on 4 November 2026, including the docking panel. Review follow-ups improve large-folder listing, cancelled-read limits, watcher recovery and panel consistency. Geoff successfully retested these follow-ups on both platforms; all review findings are resolved.
 
 ### Open and edit an existing pair
 
@@ -166,7 +166,7 @@ Newly opened images are fitted automatically. Fit mode follows pane resizing; ma
 - Existing-file saves use a temporary file in the same directory and atomic replacement. Transcription loading checks modification time and byte length before and after reading and rejects a detected change. External changes are also checked at save time using those values, with explicit overwrite confirmation. This is not continuous monitoring or a content comparison: changes retaining both values, or changes after the check, can be missed.
 - First-save creation stages the text and publishes it without replacing an existing target using a hard link where supported. On filesystems without hard-link support it falls back to exclusive creation. If a fallback write fails, a partial counterpart may remain on disk; preserve the editor text and inspect/recover that file before retrying. Failed temporary-file cleanup can also leave a dot-prefixed `.tmp` file.
 - Directory discovery currently filters by extension, ignores subdirectories and unrelated files, and sorts numbered names naturally (for example, `page-2` before `page-10`). It does not validate image contents. Image loading reports unreadable or unsupported images; no large-image performance guarantee is established.
-- Open folder, Rescan and direct page selection are implemented; their cross-platform walkthrough passed; code review remains. Fit width, rotation, per-image view restoration, find/replace, autosave/recovery and persistent window/recent-folder settings are also still planned.
+- Open folder, Rescan and direct page selection are implemented; their cross-platform walkthrough and review follow-ups are complete. Fit width, rotation, per-image view restoration, find/replace, autosave/recovery and persistent window/recent-folder settings are also still planned.
 - There are no packaged alpha builds yet. Linux and Windows are the primary targets; macOS testing and packaging remain future work. Unix permission-bit checks are skipped on Windows, whose permission model differs.
 
 ## Version 0.1 target scope
@@ -277,7 +277,7 @@ This is the most important early checkpoint. If zooming or panning feels awkward
 
 ### Phase 2 — Add paired-file workflow
 
-- [x] Open and rescan a directory (final interface implemented and tested on Windows/Linux; review pending)
+- [x] Open and rescan a directory (complete, including Windows/Linux testing and review follow-ups)
 - [x] Discover supported images and display a naturally ordered page list
 - [x] Resolve .md/.txt counterparts as missing, matched or conflicting (2B backend)
 - [x] Create a missing counterpart safely (2C, merged in PR #19)
@@ -336,7 +336,9 @@ These are candidates, not commitments. Each should preserve the local-files-firs
 
 ## Current development focus
 
-The first vertical slice, Checkpoint 2A/2B's discovery and pairing helpers, Checkpoint 2C's new-transcription workflow, and #20's manual mismatch warning are on `main`. Windows and Linux manual testing has confirmed the new-transcription and manual-pair workflows. Checkpoint 2D implements [#16: previous/next paired-page navigation](https://github.com/GeoffRiley/TextBeside/issues/16), reusing discovery, counterpart resolution and save protection; Windows/Linux interactive validation, review fixes and the targeted retest are complete. Open folder, Rescan and the Pages panel are now implemented. The remaining gate for Phase 2 is code review and merge before closing #3; the Windows/Linux folder-workflow walkthrough passed.
+**Phase 2 is complete.** Discovery, counterpart resolution, new transcriptions, safe Previous/Next navigation, manual mismatch confirmation, Open folder, Rescan and the docking Pages panel are implemented. Windows/Linux testing and review-fix retesting passed; [PR #25](https://github.com/GeoffRiley/TextBeside/pull/25) completes [Checkpoint #3](https://github.com/GeoffRiley/TextBeside/issues/3).
+
+The next phase is [Checkpoint 3 — dependable daily transcription](https://github.com/GeoffRiley/TextBeside/issues/4): remaining image controls, view restoration, find/replace, keyboard accessibility, persistent settings and a tested autosave/recovery policy. These remain planned; the application is not yet a packaged 0.1 alpha.
 
 ## Acceptance criteria for 0.1
 
