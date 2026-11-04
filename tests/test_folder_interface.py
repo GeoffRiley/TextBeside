@@ -28,7 +28,10 @@ def folder(qapp, tmp_path):
 
 
 def listed(window):
-    return [window.page_list.item(i).text() for i in range(window.page_list.count())]
+    return [
+        window.page_model.data(window.page_model.index(i))
+        for i in range(window.page_model.rowCount())
+    ]
 
 
 def state(window):
@@ -40,7 +43,7 @@ def state(window):
         window.editor.document().isModified(),
         window.new_transcription,
         listed(window),
-        window.page_list.currentRow(),
+        window.page_list.currentIndex().row(),
         window.folder_label.text(),
     )
 
@@ -51,15 +54,15 @@ def test_open_folder_and_select_nonadjacent_page(folder):
     assert window.open_folder(root)
     assert listed(window) == ["page-1.jpg", "page-2.jpg", "page-10.jpg"]
     assert window.folder_label.text() == str(root)
-    assert window.page_list.currentRow() == 0
+    assert window.page_list.currentIndex().row() == 0
     assert window.editor.toPlainText() == "page 1"
-    window.page_list.setCurrentRow(2)
+    window.page_list.setCurrentIndex(window.page_model.index(2))
     assert window.current_image_path == root / "page-10.jpg"
     assert window.current_text_path == root / "page-10.md"
     assert window.editor.toPlainText() == "page 10"
     assert not window.next_action.isEnabled()
     assert window.navigate_page(-1)
-    assert window.page_list.currentRow() == 1
+    assert window.page_list.currentIndex().row() == 1
 
 
 @pytest.mark.parametrize(
@@ -72,13 +75,13 @@ def test_list_selection_protects_unsaved_work(folder, monkeypatch, choice):
     window.editor.document().setModified(True)
     before = state(window)
     monkeypatch.setattr(QMessageBox, "question", lambda *a: choice)
-    window.page_list.setCurrentRow(2)
+    window.page_list.setCurrentIndex(window.page_model.index(2))
     if choice == QMessageBox.Cancel:
         assert state(window) == before
     else:
         assert window.current_image_path == root / "page-10.jpg"
         assert window.editor.toPlainText() == "page 10"
-        assert window.page_list.currentRow() == 2
+        assert window.page_list.currentIndex().row() == 2
     assert (root / "page-1.md").read_text(encoding="utf-8") == (
         "edited café" if choice == QMessageBox.Save else "page 1"
     )
@@ -97,10 +100,10 @@ def test_rescan_retains_edits_and_reselection_recovers_missing_current(
     window.rescan_action.trigger()
     assert state(window)[:6] == before
     assert listed(window) == ["page-2.jpg", "page-3.jpg", "page-10.jpg"]
-    assert window.page_list.currentRow() == -1
+    assert window.page_list.currentIndex().row() == -1
     assert not window.next_action.isEnabled()
     monkeypatch.setattr(QMessageBox, "question", lambda *a: QMessageBox.Discard)
-    window.page_list.setCurrentRow(1)
+    window.page_list.setCurrentIndex(window.page_model.index(1))
     assert window.current_image_path == root / "page-3.jpg"
     assert window.new_transcription
     assert window.editor.toPlainText() == ""
@@ -111,7 +114,7 @@ def test_list_missing_counterpart_creates_no_file(folder):
     (root / "page-10.md").unlink()
     window.open_folder(root)
     before = set(root.iterdir())
-    window.page_list.setCurrentRow(2)
+    window.page_list.setCurrentIndex(window.page_model.index(2))
     assert window.new_transcription
     assert window.current_text_path is None
     assert window.editor.toPlainText() == ""
@@ -169,7 +172,7 @@ def test_failed_list_load_restores_selection(folder, monkeypatch):
     before = state(window)
     (root / "page-10.jpg").write_bytes(b"corrupt")
     monkeypatch.setattr(QMessageBox, "critical", lambda *a: None)
-    window.page_list.setCurrentRow(2)
+    window.page_list.setCurrentIndex(window.page_model.index(2))
     assert state(window) == before
 
 
@@ -211,5 +214,176 @@ def test_failed_save_restores_list_selection(folder, monkeypatch):
     before = state(window)
     monkeypatch.setattr(QMessageBox, "question", lambda *a: QMessageBox.Save)
     monkeypatch.setattr(window, "save_current_text", lambda: False)
-    window.page_list.setCurrentRow(2)
+    window.page_list.setCurrentIndex(window.page_model.index(2))
     assert state(window) == before
+
+
+@pytest.mark.parametrize("cancel", [True, False])
+def test_successful_folder_keeps_discovered_list_if_rescan_fails(
+    folder, monkeypatch, tmp_path, cancel
+):
+    from textbeside import app
+
+    window, root = folder
+    window.open_folder(root)
+    other = tmp_path / "other"
+    other.mkdir()
+    for n in (1, 2):
+        copyfile(root / "page-1.jpg", other / f"new-{n}.jpg")
+    original = app.discover_images
+    calls = 0
+
+    def discover(directory):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            if cancel:
+                raise app.LoadingCancelled
+            raise PermissionError("follow-up scan unavailable")
+        return original(directory)
+
+    monkeypatch.setattr(app, "discover_images", discover)
+    assert window.open_folder(other)
+    assert window.current_image_path == other / "new-1.jpg"
+    assert window.folder_label.text() == str(other)
+    assert listed(window) == ["new-1.jpg", "new-2.jpg"]
+    assert window.page_list.currentIndex().row() == 0
+    assert window.rescan_action.isEnabled()
+
+
+@pytest.mark.parametrize("cancel", [True, False])
+def test_manual_pair_in_new_folder_never_keeps_old_rows(
+    folder, monkeypatch, tmp_path, cancel
+):
+    from textbeside import app
+
+    window, root = folder
+    window.open_folder(root)
+    other = tmp_path / "other"
+    other.mkdir()
+    copyfile(root / "page-1.jpg", other / "new.jpg")
+    (other / "new.md").write_text("new", encoding="utf-8")
+
+    def fail(*a):
+        if cancel:
+            raise app.LoadingCancelled
+        raise PermissionError("cannot list new directory")
+
+    monkeypatch.setattr(app, "discover_images", fail)
+    window.open_pair(other / "new.jpg", other / "new.md")
+    assert window.current_image_path == other / "new.jpg"
+    assert window.folder_label.text() == str(other)
+    assert listed(window) == []
+    assert not window.previous_action.isEnabled()
+    assert not window.next_action.isEnabled()
+
+
+def test_cancelled_blocked_read_does_not_spawn_retry_workers(folder):
+    from threading import Event
+
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QProgressDialog
+
+    from textbeside.app import LoadingCancelled
+
+    window, _root = folder
+    started, release = Event(), Event()
+    calls = []
+
+    def blocked():
+        calls.append(True)
+        started.set()
+        release.wait(5)
+        return "late result"
+
+    timer = QTimer()
+
+    def cancel():
+        if started.is_set():
+            dialog = window.findChild(QProgressDialog)
+            if dialog:
+                dialog.cancel()
+
+    timer.timeout.connect(cancel)
+    timer.start(10)
+    try:
+        with pytest.raises(LoadingCancelled):
+            window._run_file_task(blocked)
+        worker = window._outstanding_worker
+        for _ in range(5):
+            with pytest.raises(LoadingCancelled, match="still finishing"):
+                window._run_file_task(blocked)
+            assert window._outstanding_worker is worker
+        assert len(calls) == 1
+        assert not window._file_task_active
+    finally:
+        timer.stop()
+        release.set()
+        window._outstanding_worker.join(timeout=2)
+    assert window._run_file_task(lambda: "fresh result") == "fresh result"
+
+
+def test_large_folder_uses_lazy_batched_model(folder, monkeypatch):
+    from PySide6.QtWidgets import QListView
+
+    window, root = folder
+    window.current_image_path = root / "page-0.jpg"
+    paths = [root / f"page-{i}.jpg" for i in range(100_000)]
+    calls = []
+    original = window.page_model.data
+
+    def data(*args):
+        calls.append(True)
+        return original(*args)
+
+    monkeypatch.setattr(window.page_model, "data", data)
+    window._set_page_list(paths)
+    assert window.page_model.paths is paths
+    assert window.page_model.rowCount() == 100_000
+    assert window.page_list.layoutMode() == QListView.Batched
+    assert window.page_list.uniformItemSizes()
+    assert len(calls) < 1000  # rows aren't all materialized during publication
+    assert window.page_model.data(window.page_model.index(99999)) == "page-99999.jpg"
+
+
+def test_parent_watch_recovers_recreated_folder(folder):
+    from shutil import rmtree
+
+    from PySide6.QtCore import QEventLoop, QTimer
+
+    window, root = folder
+    window.open_folder(root)
+    source = root / "page-1.jpg"
+    image_bytes = source.read_bytes()
+    assert str(root.parent) in window._directory_watcher.directories()
+    rmtree(root)
+    window._refresh_navigation()
+    root.mkdir()
+    (root / "returned.jpg").write_bytes(image_bytes)
+    loop = QEventLoop()
+    poll = QTimer()
+    poll.timeout.connect(
+        lambda: loop.quit() if listed(window) == ["returned.jpg"] else None
+    )
+    deadline = QTimer()
+    deadline.setSingleShot(True)
+    deadline.timeout.connect(loop.quit)
+    poll.start(20)
+    deadline.start(3000)
+    loop.exec()
+    poll.stop()
+    deadline.stop()
+    assert listed(window) == ["returned.jpg"]
+    assert str(root) in window._directory_watcher.directories()
+    assert not window.watch_status_label.text()
+
+
+def test_failed_watch_is_visible_and_rescan_available(folder, monkeypatch):
+    window, root = folder
+    monkeypatch.setattr(window._directory_watcher, "addPath", lambda path: False)
+    assert window.open_folder(root)
+    assert "Automatic page updates unavailable" in window.watch_status_label.text()
+    assert "F5" in window.watch_status_label.text()
+    assert window.rescan_action.isEnabled()
+    window.rescan_folder()
+    assert listed(window) == ["page-1.jpg", "page-2.jpg", "page-10.jpg"]

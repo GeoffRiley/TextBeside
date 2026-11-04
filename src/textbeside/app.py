@@ -17,8 +17,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QInputDialog,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
+    QListView,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -36,6 +35,7 @@ from textbeside.file_ops import (
 )
 from textbeside.image_discovery import IMAGE_EXTENSIONS, discover_images
 from textbeside.image_view import ImageView
+from textbeside.page_list import PageListModel
 from textbeside.pairing import PairStatus, resolve_pair
 
 TEXT_EXTENSIONS = {".md", ".txt"}
@@ -98,6 +98,8 @@ class MainWindow(QMainWindow):
         self.current_text_signature: FileSignature | None = None
         self.new_transcription = False
         self._file_task_active = False
+        self._outstanding_worker: Thread | None = None
+        self._listed_directory: Path | None = None
         self._navigation_busy = False
         self._directory_watcher = QFileSystemWatcher(self)
         self._directory_refresh = QTimer(self)
@@ -209,12 +211,22 @@ class MainWindow(QMainWindow):
         self.folder_label = QLabel("No folder open")
         self.folder_label.setTextFormat(Qt.PlainText)
         self.folder_label.setWordWrap(True)
-        self.page_list = QListWidget()
+        self.watch_status_label = QLabel()
+        self.watch_status_label.setWordWrap(True)
+        self.page_model = PageListModel(self)
+        self.page_list = QListView()
+        self.page_list.setModel(self.page_model)
+        self.page_list.setUniformItemSizes(True)
+        self.page_list.setLayoutMode(QListView.Batched)
+        self.page_list.setBatchSize(256)
         self.page_list.setAccessibleName("Pages in working folder")
-        self.page_list.currentRowChanged.connect(self._select_page)
+        self.page_list.selectionModel().currentChanged.connect(
+            lambda current, _previous: self._select_page(current.row())
+        )
         pane = QWidget()
         layout = QVBoxLayout(pane)
         layout.addWidget(self.folder_label)
+        layout.addWidget(self.watch_status_label)
         layout.addWidget(self.page_list)
         dock = QDockWidget("Pages", self)
         dock.setObjectName("pagesDock")
@@ -224,37 +236,32 @@ class MainWindow(QMainWindow):
         self.view_menu.addAction(dock.toggleViewAction())
 
     def _restore_page_selection(self) -> None:
-        with QSignalBlocker(self.page_list):
-            row = next(
-                (
-                    i
-                    for i in range(self.page_list.count())
-                    if self.page_list.item(i).data(Qt.UserRole)
-                    == str(self.current_image_path)
-                ),
-                -1,
+        with QSignalBlocker(self.page_list.selectionModel()):
+            self.page_list.setCurrentIndex(
+                self.page_model.index(self.page_model.row_for(self.current_image_path))
             )
-            self.page_list.setCurrentRow(row)
 
     def _set_page_list(self, images: list[Path]) -> None:
-        with QSignalBlocker(self.page_list):
-            self.page_list.clear()
-            for image in images:
-                item = QListWidgetItem(image.name)
-                item.setData(Qt.UserRole, str(image))
-                item.setToolTip(str(image))
-                self.page_list.addItem(item)
+        with QSignalBlocker(self.page_list.selectionModel()):
+            self.page_model.replace(images)
             self._restore_page_selection()
-        if self.current_image_path is not None:
-            directory = str(self.current_image_path.parent)
-            self.folder_label.setText(directory)
-            self.folder_label.setToolTip(directory)
+        self._listed_directory = (
+            self.current_image_path.parent if self.current_image_path else None
+        )
+        directory = (
+            str(self._listed_directory) if self._listed_directory else "No folder open"
+        )
+        self.folder_label.setText(directory)
+        self.folder_label.setToolTip(directory)
+        row = self.page_list.currentIndex().row()
+        self.previous_action.setEnabled(row > 0)
+        self.next_action.setEnabled(0 <= row < len(images) - 1)
+        self.rescan_action.setEnabled(self.current_image_path is not None)
 
     def _select_page(self, row: int) -> None:
-        item = self.page_list.item(row)
-        if item is None:
+        if not 0 <= row < self.page_model.rowCount():
             return
-        path = Path(item.data(Qt.UserRole))
+        path = self.page_model.paths[row]
         if path == self.current_image_path:
             return
         if self._navigation_busy or self._file_task_active:
@@ -304,6 +311,9 @@ class MainWindow(QMainWindow):
         finally:
             self._navigation_busy = False
         if changed:
+            # Publish the successful discovery before any optional rescan can
+            # fail or be cancelled. Never keep the previous folder's pages.
+            self._set_page_list(images)
             self._refresh_navigation()
             self.page_dock.show()
         return changed
@@ -319,6 +329,12 @@ class MainWindow(QMainWindow):
         Cancellation ignores the result; it cannot interrupt an operating-system
         read already in progress. Workers never access widgets or write files.
         """
+        if self._outstanding_worker is not None and self._outstanding_worker.is_alive():
+            message = (
+                "Previous file read is still finishing. Please retry when it completes."
+            )
+            self.statusBar().showMessage(message)
+            raise LoadingCancelled(message)
         results = Queue()
 
         def run():
@@ -348,7 +364,8 @@ class MainWindow(QMainWindow):
         timer.timeout.connect(poll)
         progress.canceled.connect(loop.quit)
         self._file_task_active = True
-        Thread(target=run, daemon=True).start()
+        self._outstanding_worker = Thread(target=run, daemon=True)
+        self._outstanding_worker.start()
         timer.start(10)
         try:
             loop.exec()
@@ -366,6 +383,29 @@ class MainWindow(QMainWindow):
             loop.deleteLater()
             self._file_task_active = False
 
+    def _sync_directory_watches(self, directory: Path | None) -> None:
+        """A parent watch survives removal/recreation of the working folder."""
+        wanted = {str(directory), str(directory.parent)} if directory else set()
+        watched = set(self._directory_watcher.directories())
+        obsolete = watched - wanted
+        if obsolete:
+            self._directory_watcher.removePaths(list(obsolete))
+        failed = []
+        for path in wanted - watched:
+            if not self._directory_watcher.addPath(path):
+                failed.append(path)
+        current = set(self._directory_watcher.directories())
+        if directory and str(directory) not in current:
+            self.watch_status_label.setText(
+                "Automatic page updates unavailable. Use Rescan folder (F5)."
+            )
+        elif failed:
+            self.watch_status_label.setText(
+                "Folder recovery watch unavailable. Rescan (F5) if the folder is recreated."
+            )
+        else:
+            self.watch_status_label.clear()
+
     def _refresh_navigation(self, report_errors: bool = False) -> None:
         """Watch the directory and refresh boundary actions after changes."""
         if self._file_task_active or self._navigation_busy:
@@ -373,13 +413,12 @@ class MainWindow(QMainWindow):
             return
         image_path = self.current_image_path
         self.rescan_action.setEnabled(image_path is not None)
-        watched = self._directory_watcher.directories()
-        directory = str(image_path.parent) if image_path else None
-        if watched != ([directory] if directory else []):
-            if watched:
-                self._directory_watcher.removePaths(watched)
-            if directory:
-                self._directory_watcher.addPath(directory)
+        directory = image_path.parent if image_path else None
+        if directory != self._listed_directory:
+            # A newly committed manual pair must never retain another folder's
+            # selectable rows, even if discovery subsequently fails or cancels.
+            self._set_page_list([])
+        self._sync_directory_watches(directory)
         if image_path is None:
             self.previous_action.setEnabled(False)
             self.next_action.setEnabled(False)
@@ -396,8 +435,8 @@ class MainWindow(QMainWindow):
                 )
                 return
             index = images.index(image_path)
-        except LoadingCancelled:
-            self.statusBar().showMessage("Page refresh cancelled")
+        except LoadingCancelled as exc:
+            self.statusBar().showMessage(str(exc) or "Page refresh cancelled")
             return
         except (OSError, ValueError) as exc:
             if report_errors:

@@ -1,6 +1,6 @@
 # Phase 2 folder workflow: Windows and Linux walkthrough
 
-Status: 96 automated tests pass. Geoff confirmed testing passed on Windows and Linux on 4 November 2026, with positive feedback on the docking panel. Code review and merge remain.
+Status: 104 automated tests pass. Geoff confirmed testing passed on Windows and Linux on 4 November 2026, with positive feedback on the docking panel. Review follow-ups below need targeted Windows/Linux retesting, code review and merge.
 Use temporary copies of `examples/field-notes`, never edit committed samples.
 
 1. Choose File → Open folder (Ctrl+Shift+O) and select the sample-copy folder.
@@ -36,3 +36,23 @@ Use temporary copies of `examples/field-notes`, never edit committed samples.
 
 Record platform and results in the PR. Phase 2 remains open until this walkthrough
 and review pass. No manifest, import, conversion, recursion or file renaming is added.
+
+
+## Review follow-up checks
+
+- Open a folder containing many images. The list should stay responsive while
+  scrolling and selecting; visible row details are requested on demand.
+- Cancel a deliberately slow read and retry while that same read is still pending.
+  The status bar should explain that the previous read is finishing. The app must
+  not start additional workers; after completion, retry normally. Current text
+  remains available for saving after the loading dialog is cancelled.
+- Open a different folder, then cancel its follow-up refresh or make that scan fail.
+  The panel should retain the new folder's already-discovered pages, not old rows.
+  A manually opened pair whose new folder cannot be scanned should show the new
+  folder label and an empty list rather than the old folder's selectable pages.
+- Remove and recreate the working folder while its parent remains available.
+  Automatic updates should reconnect and show its new pages. If watching cannot
+  be established, confirm the Pages panel explains that F5/manual Rescan is usable.
+
+The original Windows/Linux test evidence remains recorded above. These later
+changes are covered by automated regressions but await targeted manual retesting.

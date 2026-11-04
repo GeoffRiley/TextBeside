@@ -25,13 +25,13 @@ this interactive validation.
 7. Try a corrupt image, invalid UTF-8 text, removed current image, and unavailable
    directory. Expect a useful error with current work intact. Remove the destination
    while the unsaved-changes prompt is open and choose Discard: loading must fail
-   without clearing the current text. Reopen a valid pair to recover the controls.
+   without clearing the current text. Select a surviving page in the Pages panel to continue, or reopen a valid pair if none is available.
 8. Open a deliberate manual mismatch, accepting its warning. Navigation is anchored
    to that image's directory and each destination resolves its own counterpart;
    it must not carry the manually selected text file to the next image.
 
 The directory is rediscovered for each navigation. Files removed before a click
-are absent from the new sequence; a disappeared current image requires reopening.
+are absent from the new sequence; if the current image disappears, select a surviving page in the Pages panel; reopen a pair or folder only when no suitable page is listed.
 A directory watcher refreshes page position and boundary controls when images are
 added or removed. Open folder, explicit Rescan and the Pages panel are covered by the separate
 [folder workflow walkthrough](folder-workflow-walkthrough.md).

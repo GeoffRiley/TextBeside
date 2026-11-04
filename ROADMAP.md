@@ -46,7 +46,7 @@ gantt
 | 2D: previous/next paired-page navigation | **Complete — [#16](https://github.com/GeoffRiley/TextBeside/issues/16)** | Toolbar/menu controls and Alt+Left/Right reuse discovery, counterpart resolution and save protection; Windows/Linux walkthrough and review-fix retest passed; all initial review findings are resolved. |
 | Complete directory workflow and checkpoint review | Implemented and tested; review pending — [#3](https://github.com/GeoffRiley/TextBeside/issues/3) | Open folder, explicit Rescan and a hideable naturally ordered page list reuse the shared transactional page loader. Windows/Linux folder walkthrough passed on 4 November 2026; code review and merge remain before closure. |
 
-The directory-interface implementation has **96 passing automated tests** across the application suite, with Ruff lint and formatting checks passing. This is a dated evidence snapshot, not a fixed test-count target. The [manual-pair walkthrough](docs/manual-pair-warning-walkthrough.md) documents interactive checks.
+The directory-interface implementation has **104 passing automated tests** across the application suite, with Ruff lint and formatting checks passing. This is a dated evidence snapshot, not a fixed test-count target. The [manual-pair walkthrough](docs/manual-pair-warning-walkthrough.md) documents interactive checks.
 
 ## Completed slice: Issue #16
 
@@ -61,7 +61,7 @@ A multi-image manifest or control file associating multiple images with one tran
 ## Final Phase 2 validation
 
 - Geoff confirmed the [Windows/Linux folder workflow walkthrough](docs/folder-workflow-walkthrough.md) passed on both platforms on 4 November 2026, including the docking panel.
-- Review the shared folder/list/Previous/Next transition and cancellation behavior.
+- Review follow-ups add a lazy batched page model, one-outstanding-worker limit, consistent list publication after folder opening, parent-folder watch recovery and visible watcher failure notices. Automated regressions pass; targeted Windows/Linux retesting and code review of these follow-ups remain.
 - Record final evidence in [#3](https://github.com/GeoffRiley/TextBeside/issues/3), update its exit checks and close it only after the final walkthrough and review pass.
 - Phase 3 remains next; no multi-image manifest is introduced.
 
