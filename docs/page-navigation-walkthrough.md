@@ -33,7 +33,8 @@ this interactive validation.
 The directory is rediscovered for each navigation. Files removed before a click
 are absent from the new sequence; a disappeared current image requires reopening.
 A directory watcher refreshes page position and boundary controls when images are
-added or removed. There is no dedicated folder browser, rescan command or page list.
+added or removed. Open folder, explicit Rescan and the Pages panel are covered by the separate
+[folder workflow walkthrough](folder-workflow-walkthrough.md).
 
 ## Review follow-up checks (Windows and Linux)
 

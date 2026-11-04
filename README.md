@@ -108,9 +108,17 @@ ruff format --check .
 
 ## Current prototype: usage and status
 
-Checkpoint 1's split-view, image controls and safe text saving are implemented on `main`. Checkpoint 2A adds nonrecursive image discovery and natural filename ordering; Checkpoint 2B adds explicit missing/matched/conflicting counterpart results. Previous/next navigation now connects these helpers to the interface. A folder browser, dedicated rescan command and page list remain outstanding.
+Checkpoint 1's split-view, image controls and safe text saving are implemented on `main`. Checkpoint 2A adds nonrecursive image discovery and natural filename ordering; Checkpoint 2B adds explicit missing/matched/conflicting counterpart results. Previous/next navigation now connects these helpers to the interface. Open folder, Rescan and a Pages panel now complete the directory interface; their Windows/Linux walkthrough and code review remain pending.
 
 Checkpoint 2C's **File → New transcription from image…** workflow is implemented on `main`, merged in [PR #19](https://github.com/GeoffRiley/TextBeside/pull/19). Manual filename-mismatch warnings and safer pair opening are also on `main`, merged in [PR #21](https://github.com/GeoffRiley/TextBeside/pull/21) for [#20](https://github.com/GeoffRiley/TextBeside/issues/20). The workflows were manually tested on Windows and Linux. Checkpoint 2D adds previous/next navigation under [#16](https://github.com/GeoffRiley/TextBeside/issues/16); Windows/Linux testing and review follow-ups are complete in [PR #24](https://github.com/GeoffRiley/TextBeside/pull/24).
+
+### Open a working folder
+
+Choose **File → Open folder…** (**Ctrl+Shift+O**) to open the first supported image in natural filename order and its resolved transcription. The **Pages** panel shows the working folder and its images; click a filename or use the list's arrow keys to select a page. Every page change uses the same counterpart-conflict choices and **Save / Discard / Cancel** safeguards as Previous/Next. Hide or restore the panel through **View → Pages**.
+
+Choose **Navigate → Rescan folder** (**F5**), or its toolbar button, to refresh the listing without reloading the active transcription or clearing unsaved edits. Directory watching also updates the list automatically. If the active image disappears, its text remains available; select another listed page to continue. An empty or unreadable new folder leaves the current work and folder unchanged. Only supported files directly inside the folder are listed; no imports, conversions or file writes occur merely by opening or rescanning.
+
+See the [Windows/Linux folder walkthrough](docs/folder-workflow-walkthrough.md). Interactive validation and code review of this final Phase 2 interface are pending.
 
 ### Open and edit an existing pair
 
@@ -138,7 +146,7 @@ Open an existing pair or start from an unpaired image, then use the **Previous p
 
 Each destination opens its same-basename transcription. A missing counterpart starts an empty in-memory transcription without creating a file; both `.md` and `.txt` prompt for an explicit choice, with Cancel as the default. Modified text prompts **Save / Discard / Cancel** before switching. Cancellation, failed saving or failed loading retains the current work. Intentional manual mismatches remain available; navigation uses the active image's directory and resolves each destination independently.
 
-The active directory is watched for changes, refreshing page position and boundary controls when pages are added or removed. It is also rediscovered at each navigation; if the current image disappears, reopen a valid pair. Discovery, image decoding and transcription loading run in background workers, with a cancellable loading dialog for slow operations. Cancel keeps the current page; an operating-system read already in progress may finish in the background, but its cancelled result is ignored. Destination files and pairing are rechecked after dialogs before switching. See the [Windows/Linux navigation walkthrough](docs/page-navigation-walkthrough.md); Geoff confirmed all walkthrough tests passed on both platforms on 27 October 2026, with fast operation and predictable responses. Geoff also retested the background-loading cancellation and live directory refresh changes successfully on both platforms.
+The active directory is watched for changes, refreshing page position and boundary controls when pages are added or removed. It is also rediscovered at each navigation; if the current image disappears, select another listed page or reopen a valid pair. Discovery, image decoding and transcription loading run in background workers, with a cancellable loading dialog for slow operations. Cancel keeps the current page; an operating-system read already in progress may finish in the background, but its cancelled result is ignored. Destination files and pairing are rechecked after dialogs before switching. See the [Windows/Linux navigation walkthrough](docs/page-navigation-walkthrough.md); Geoff confirmed all walkthrough tests passed on both platforms on 27 October 2026, with fast operation and predictable responses. Geoff also retested the background-loading cancellation and live directory refresh changes successfully on both platforms.
 
 ### Image controls
 
@@ -158,7 +166,7 @@ Newly opened images are fitted automatically. Fit mode follows pane resizing; ma
 - Existing-file saves use a temporary file in the same directory and atomic replacement. Transcription loading checks modification time and byte length before and after reading and rejects a detected change. External changes are also checked at save time using those values, with explicit overwrite confirmation. This is not continuous monitoring or a content comparison: changes retaining both values, or changes after the check, can be missed.
 - First-save creation stages the text and publishes it without replacing an existing target using a hard link where supported. On filesystems without hard-link support it falls back to exclusive creation. If a fallback write fails, a partial counterpart may remain on disk; preserve the editor text and inspect/recover that file before retrying. Failed temporary-file cleanup can also leave a dot-prefixed `.tmp` file.
 - Directory discovery currently filters by extension, ignores subdirectories and unrelated files, and sorts numbered names naturally (for example, `page-2` before `page-10`). It does not validate image contents. Image loading reports unreadable or unsupported images; no large-image performance guarantee is established.
-- A dedicated folder-opening/rescan interface and a page list are not implemented; navigation starts from the current image and offers explicit counterpart-conflict choices. Fit width, rotation, per-image view restoration, find/replace, autosave/recovery and persistent window/recent-folder settings are also still planned.
+- Open folder, Rescan and direct page selection are implemented; their cross-platform walkthrough and review are pending. Fit width, rotation, per-image view restoration, find/replace, autosave/recovery and persistent window/recent-folder settings are also still planned.
 - There are no packaged alpha builds yet. Linux and Windows are the primary targets; macOS testing and packaging remain future work. Unix permission-bit checks are skipped on Windows, whose permission model differs.
 
 ## Version 0.1 target scope
@@ -226,7 +234,7 @@ PDF files and multi-page image containers are deferred until after 0.1. A multi-
 
 ## Interface target
 
-The current window has an editable text pane on the left, an image pane on the right, a draggable splitter, filename/state headers, File and View menus, and a basic status bar. The full 0.1 interface is planned to contain:
+The current window has a hideable Pages panel, an editable text pane beside the image pane, a draggable splitter, filename/state headers, File/View/Navigate menus, a navigation toolbar and page-position status. The full 0.1 interface is planned to contain:
 
 - a compact directory/pair navigator;
 - an editable text pane;
@@ -269,8 +277,8 @@ This is the most important early checkpoint. If zooming or panning feels awkward
 
 ### Phase 2 — Add paired-file workflow
 
-- [ ] Open and rescan a directory
-- [x] Discover supported images (2A backend, integrated with page navigation; folder-opening UI remains)
+- [x] Open and rescan a directory (final interface implemented; validation pending)
+- [x] Discover supported images and display a naturally ordered page list
 - [x] Resolve .md/.txt counterparts as missing, matched or conflicting (2B backend)
 - [x] Create a missing counterpart safely (2C, merged in PR #19)
 - [x] Warn before manually opening mismatched filename stems, preserving intentional mismatches and safe cancellation (#20, merged in PR #21)
@@ -328,7 +336,7 @@ These are candidates, not commitments. Each should preserve the local-files-firs
 
 ## Current development focus
 
-The first vertical slice, Checkpoint 2A/2B's discovery and pairing helpers, Checkpoint 2C's new-transcription workflow, and #20's manual mismatch warning are on `main`. Windows and Linux manual testing has confirmed the new-transcription and manual-pair workflows. Checkpoint 2D implements [#16: previous/next paired-page navigation](https://github.com/GeoffRiley/TextBeside/issues/16), reusing discovery, counterpart resolution and save protection; Windows/Linux interactive validation, review fixes and the targeted retest are complete. Directory selection and the overall paired-directory checkpoint remain incomplete.
+The first vertical slice, Checkpoint 2A/2B's discovery and pairing helpers, Checkpoint 2C's new-transcription workflow, and #20's manual mismatch warning are on `main`. Windows and Linux manual testing has confirmed the new-transcription and manual-pair workflows. Checkpoint 2D implements [#16: previous/next paired-page navigation](https://github.com/GeoffRiley/TextBeside/issues/16), reusing discovery, counterpart resolution and save protection; Windows/Linux interactive validation, review fixes and the targeted retest are complete. Open folder, Rescan and the Pages panel are now implemented. The remaining gate for Phase 2 is code review and the Windows/Linux folder-workflow walkthrough before closing #3.
 
 ## Acceptance criteria for 0.1
 
